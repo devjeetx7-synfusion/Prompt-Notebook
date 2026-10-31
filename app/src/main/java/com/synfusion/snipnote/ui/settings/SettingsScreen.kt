@@ -66,6 +66,7 @@ import com.synfusion.snipnote.domain.model.ThemeMode
 import com.synfusion.snipnote.ui.SnipViewModelFactories
 import com.synfusion.snipnote.ui.components.GlassCard
 import com.synfusion.snipnote.ui.components.Pill
+import com.synfusion.snipnote.ui.navigation.FloatingNavContentPadding
 import com.synfusion.snipnote.ui.theme.LocalAuroraExtras
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -138,7 +139,7 @@ fun SettingsScreen(
     ) { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 12.dp, bottom = 100.dp),
+            contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 12.dp, bottom = FloatingNavContentPadding),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             item {

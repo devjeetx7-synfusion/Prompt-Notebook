@@ -3,116 +3,96 @@ package com.synfusion.snipnote.ui.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.synfusion.snipnote.data.repository.CategoryRepository
-import com.synfusion.snipnote.data.repository.CategoryWithCount
 import com.synfusion.snipnote.data.repository.NoteRepository
+import com.synfusion.snipnote.domain.model.Category
 import com.synfusion.snipnote.domain.model.Note
+import com.synfusion.snipnote.domain.model.NoteFilter
+import com.synfusion.snipnote.domain.model.NoteType
+import com.synfusion.snipnote.ui.actions.NoteActionDelegate
+import com.synfusion.snipnote.ui.actions.NoteActions
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
-import java.time.LocalTime
-
-data class Counts(
-    val total: Int = 0,
-    val favorites: Int = 0,
-    val pinned: Int = 0,
-)
 
 data class HomeUiState(
-    val greeting: String = "Hello",
-    val recent: List<Note> = emptyList(),
-    val categories: List<CategoryWithCount> = emptyList(),
-    val counts: Counts = Counts(),
+    val items: List<Note> = emptyList(),
+    val totalCount: Int = 0,
+    val filterType: NoteType? = null,
+    val categories: List<Category> = emptyList(),
     val loading: Boolean = true,
-    val error: String? = null,
     val message: String? = null,
+    val error: String? = null,
 )
 
+/**
+ * Home is intentionally thin: one list of recent items, one type filter and the contextual
+ * actions. There are no dashboard counters and no per-card action buttons.
+ */
+@OptIn(ExperimentalCoroutinesApi::class)
 class HomeViewModel(
     private val notes: NoteRepository,
     categories: CategoryRepository,
-    hourProvider: () -> Int = { LocalTime.now().hour },
+    actions: NoteActions,
 ) : ViewModel() {
 
+    private val filterType = MutableStateFlow<NoteType?>(null)
     private val transient = MutableStateFlow(Transient())
 
     private data class Transient(val message: String? = null, val error: String? = null)
 
-    private val recentFlow = notes.observeRecent(RECENT_LIMIT)
+    private val delegate = NoteActionDelegate(actions, viewModelScope) { message ->
+        transient.update { it.copy(message = message) }
+    }
+
+    private val itemsFlow = filterType
+        .flatMapLatest { type -> notes.observeNotes(NoteFilter(type = type)) }
         .catch { throwable ->
-            transient.update { it.copy(error = "Could not load recent notes: ${throwable.message ?: "unknown error"}") }
+            transient.update { it.copy(error = "Could not load your notes: ${throwable.message ?: "unknown error"}") }
             emit(emptyList())
         }
 
-    private val categoryFlow = categories.observeCategoriesWithCounts()
-        .catch { emit(emptyList()) }
+    val state: StateFlow<HomeUiState> = combine(
+        itemsFlow,
+        filterType,
+        notes.observeVisibleCount().catch { emit(0) },
+        categories.observeCategories().catch { emit(emptyList()) },
+        transient,
+    ) { items, type, count, cats, extra ->
+        HomeUiState(
+            items = items.take(HOME_ITEM_LIMIT),
+            totalCount = count,
+            filterType = type,
+            categories = cats,
+            loading = false,
+            message = extra.message,
+            error = extra.error,
+        )
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState())
 
-    private val countsFlow = combine(
-        notes.observeVisibleCount(),
-        notes.observeFavoriteCount(),
-        notes.observePinnedCount(),
-    ) { total, favorites, pinned -> Counts(total, favorites, pinned) }
-
-    private val greeting = com.synfusion.snipnote.util.TimeFormat.greeting(hourProvider())
-
-    val state: StateFlow<HomeUiState> =
-        combine(recentFlow, categoryFlow, countsFlow, transient) { recent, categories, counts, extra ->
-            HomeUiState(
-                greeting = greeting,
-                recent = recent,
-                categories = categories,
-                counts = counts,
-                loading = false,
-                error = extra.error,
-                message = extra.message,
-            )
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState(greeting = greeting))
-
-    fun toggleFavorite(note: Note) = viewModelScope.launch {
-        notes.setFavorite(listOf(note.id), !note.isFavorite)
-        transient.update { it.copy(message = if (note.isFavorite) "Removed from favorites" else "Added to favorites") }
+    fun setFilter(type: NoteType?) {
+        filterType.value = type
     }
 
-    fun togglePinned(note: Note) = viewModelScope.launch {
-        notes.setPinned(listOf(note.id), !note.isPinned)
-        transient.update { it.copy(message = if (note.isPinned) "Unpinned" else "Pinned to top") }
-    }
+    fun copy(note: Note) = delegate.copy(note)
 
-    fun delete(note: Note) = viewModelScope.launch {
-        val deleted = notes.delete(note.id)
-        transient.update { it.copy(message = if (deleted) "Note deleted" else "Could not delete note") }
-    }
+    fun toggleFavorite(note: Note) = delegate.toggleFavorite(note)
 
-    /** Saves the quick-capture sheet contents in one shot (no separate editor round trip). */
-    fun quickCapture(text: String, type: com.synfusion.snipnote.domain.model.NoteType, onSaved: (Long) -> Unit) {
-        if (text.isBlank()) {
-            transient.update { it.copy(error = "Nothing to capture yet") }
-            return
-        }
-        viewModelScope.launch {
-            try {
-                val id = notes.save(
-                    com.synfusion.snipnote.data.repository.NoteDraft(
-                        title = "",
-                        content = text,
-                        type = type,
-                    ),
-                )
-                transient.update { it.copy(message = "Captured") }
-                onSaved(id)
-            } catch (e: Exception) {
-                transient.update { it.copy(error = "Could not save: ${e.message ?: "unknown error"}") }
-            }
-        }
-    }
+    fun moveToCategory(note: Note, categoryId: Long?) = delegate.moveToCategory(note, categoryId)
 
-    fun clearMessage() = transient.update { it.copy(message = null, error = null) }
+    fun togglePrivate(note: Note) = delegate.togglePrivate(note)
+
+    fun delete(note: Note) = delegate.delete(note)
+
+    fun clearMessage() = transient.update { Transient() }
 
     companion object {
-        const val RECENT_LIMIT = 6
+        /** Home shows recent items; the full archive lives behind the type filters / search. */
+        const val HOME_ITEM_LIMIT = 40
     }
 }

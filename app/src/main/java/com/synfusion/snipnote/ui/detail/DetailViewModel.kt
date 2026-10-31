@@ -3,6 +3,7 @@ package com.synfusion.snipnote.ui.detail
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.synfusion.snipnote.data.repository.NoteDraft
 import com.synfusion.snipnote.data.repository.NoteRepository
 import com.synfusion.snipnote.data.repository.RoomNoteRepository
 import com.synfusion.snipnote.data.security.SafeLockedException
@@ -89,6 +90,35 @@ class DetailViewModel(
             } else {
                 transient.update { it.copy(error = "Could not delete this note") }
             }
+        }
+    }
+
+    /** Moves the item into or out of the Safe workspace (requires an unlocked Safe). */
+    fun togglePrivate() {
+        val note = state.value.note ?: return
+        viewModelScope.launch {
+            val target = !note.isSecure
+            val message = try {
+                visibleRepository.save(
+                    NoteDraft(
+                        id = note.id,
+                        title = note.title,
+                        content = note.content,
+                        type = note.type,
+                        categoryId = note.category?.id,
+                        tags = note.tags.map { it.name },
+                        isFavorite = note.isFavorite,
+                        isPinned = note.isPinned,
+                        isSecure = target,
+                    ),
+                )
+                if (target) "Moved to Safe" else "Moved out of Safe"
+            } catch (e: com.synfusion.snipnote.data.security.SafeLockedException) {
+                "Unlock the Safe workspace to change where this item is stored"
+            } catch (e: Exception) {
+                "Could not move the item: ${e.message ?: "unknown error"}"
+            }
+            transient.update { it.copy(message = message) }
         }
     }
 

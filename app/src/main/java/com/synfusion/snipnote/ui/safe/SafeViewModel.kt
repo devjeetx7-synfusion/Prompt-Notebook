@@ -7,6 +7,7 @@ import com.synfusion.snipnote.data.security.SafeLockedException
 import com.synfusion.snipnote.data.security.SafeSession
 import com.synfusion.snipnote.domain.model.Note
 import com.synfusion.snipnote.domain.model.NoteFilter
+import com.synfusion.snipnote.ui.actions.NoteActions
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -33,6 +34,7 @@ data class SafeUiState(
 class SafeViewModel(
     private val repository: RoomNoteRepository,
     val session: SafeSession,
+    private val actions: NoteActions,
 ) : ViewModel() {
 
     private val query = MutableStateFlow("")
@@ -94,6 +96,14 @@ class SafeViewModel(
         session.lock()
         query.value = ""
         transient.update { Transient() }
+    }
+
+    fun copy(note: Note) {
+        transient.update { it.copy(message = actions.copy(note)) }
+    }
+
+    fun togglePrivate(note: Note) = viewModelScope.launch {
+        transient.update { it.copy(message = actions.togglePrivate(note)) }
     }
 
     fun toggleFavorite(note: Note) = viewModelScope.launch {

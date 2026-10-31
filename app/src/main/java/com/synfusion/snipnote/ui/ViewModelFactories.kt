@@ -21,17 +21,27 @@ import androidx.lifecycle.ViewModelProvider
 object SnipViewModelFactories {
 
     fun home(container: AppContainer): ViewModelProvider.Factory = viewModelFactory {
-        initializer { HomeViewModel(container.noteRepository, container.categoryRepository) }
+        initializer {
+            HomeViewModel(container.noteRepository, container.categoryRepository, container.noteActions)
+        }
     }
 
     fun noteList(container: AppContainer): ViewModelProvider.Factory = viewModelFactory {
         initializer {
-            NoteListViewModel(container.noteRepository, createSavedStateHandle(), container.settingsRepository)
+            NoteListViewModel(
+                repository = container.noteRepository,
+                savedStateHandle = createSavedStateHandle(),
+                settings = container.settingsRepository,
+                actions = container.noteActions,
+                categories = container.categoryRepository,
+            )
         }
     }
 
     fun search(container: AppContainer): ViewModelProvider.Factory = viewModelFactory {
-        initializer { SearchViewModel(container.noteRepository, container.categoryRepository) }
+        initializer {
+            SearchViewModel(container.noteRepository, container.categoryRepository, container.noteActions)
+        }
     }
 
     fun editor(container: AppContainer): ViewModelProvider.Factory = viewModelFactory {
@@ -51,7 +61,7 @@ object SnipViewModelFactories {
     }
 
     fun safe(container: AppContainer): ViewModelProvider.Factory = viewModelFactory {
-        initializer { SafeViewModel(container.noteRepository, container.safeSession) }
+        initializer { SafeViewModel(container.noteRepository, container.safeSession, container.noteActions) }
     }
 
     fun settings(container: AppContainer): ViewModelProvider.Factory = viewModelFactory {
