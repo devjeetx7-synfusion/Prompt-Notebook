@@ -1,5 +1,7 @@
 # SnipNote
 
+[![Android CI](https://github.com/devjeetx7-synfusion/Prompt-Notebook/actions/workflows/android-build.yml/badge.svg?branch=main)](https://github.com/devjeetx7-synfusion/Prompt-Notebook/actions/workflows/android-build.yml)
+
 SnipNote is an offline-first Android workspace for saving, organising, searching and copying
 **AI prompts, notes, code snippets and links** – with an encrypted **Safe** vault for private
 items. It is a native Kotlin app built with Jetpack Compose + Material 3, MVVM, a repository
@@ -113,15 +115,12 @@ app/src/main/java/com/synfusion/snipnote/
 2. Clone the repository and open it as a Gradle project.
 3. `./gradlew assembleDebug` (or run the `app` configuration).
 
-If the Gradle wrapper JAR is missing from your checkout (it is a binary and is not committed
-here), generate it once with a local Gradle 8.11+ installation:
-
-```bash
-gradle wrapper --gradle-version 8.11.1
-```
+The Gradle wrapper (`gradlew`, `gradlew.bat`, `gradle/wrapper/gradle-wrapper.jar`, Gradle
+8.11.1) is committed, so no local Gradle installation is required.
 
 To build from the command line you need `local.properties` with `sdk.dir=/path/to/Android/Sdk`
-(Android Studio writes this automatically; it must not be committed).
+(Android Studio writes this automatically; it must not be committed). CI does not need it —
+`ANDROID_HOME` is provided by the workflow.
 
 ---
 
@@ -142,11 +141,54 @@ To build from the command line you need `local.properties` with `sdk.dir=/path/t
 ./gradlew :app:assembleRelease
 ```
 
-> **Verification status in this environment:** the work was authored in a sandbox with **no
-> JDK, no Gradle distribution, no Android SDK and no access to `dl.google.com` /
-> `repo1.maven.org`**, so no Gradle task, unit test or instrumentation test could be executed
-> here. The commands above are the exact ones to run locally; results have not been claimed as
-> passing anywhere in this document.
+Instrumentation tests need a device or emulator and are **not** part of CI.
+
+> **Verification status.** The app was authored in a sandbox without a JDK, Android SDK or
+> access to Maven/Google repositories, so nothing could be built there. The GitHub Actions
+> pipeline is what actually exercises the project: `:app:assembleDebug` and
+> `:app:testDebugUnitTest` both pass — **44 unit tests, 0 failures, 0 errors, 0 skipped**
+> (run [41172271425](https://github.com/devjeetx7-synfusion/Prompt-Notebook/actions/runs/41172271425),
+> producing a 19.5 MB `app-debug.apk`). The instrumentation tests have **not** been executed
+> anywhere yet.
+
+---
+
+## Continuous integration
+
+`.github/workflows/android-build.yml` runs on **push to `main`**, **pull requests targeting
+`main`** and **manual dispatch** on `ubuntu-latest`:
+
+| Step | Detail |
+| --- | --- |
+| JDK | Temurin **17** (`actions/setup-java@v4`) |
+| Gradle | Wrapper **8.11.1**, cache via `gradle/actions/setup-gradle@v4` (wrapper JAR checksum validated) |
+| Android SDK | `android-actions/setup-android@v3` with `platforms;android-35`, `build-tools;35.0.0`, `platform-tools` |
+| Pre-flight | Fails early if the wrapper, module path (`:app`), namespace or SDK components are wrong |
+| Build | `./gradlew :app:assembleDebug --stacktrace` |
+| Tests | `./gradlew :app:testDebugUnitTest --stacktrace` |
+| APK artifact | `app/build/outputs/apk/debug/app-debug.apk` → artifact **`SnipNote-debug-apk`** (14-day retention) |
+| Reports | JUnit XML + HTML → artifact **`SnipNote-unit-test-reports`**, uploaded even when tests fail |
+| Permissions | `contents: read` only; no secrets or tokens are used |
+
+The workflow fails if compilation, the APK check or the unit tests fail.
+
+**Last verified run:** [#41172271425](https://github.com/devjeetx7-synfusion/Prompt-Notebook/actions/runs/41172271425)
+— success, 3 m 55 s, 44 unit tests passed; artifacts `SnipNote-debug-apk` (19.5 MB),
+`SnipNote-unit-test-reports`, `SnipNote-build-log`. The only CI noise is an informational
+"Gradle 8.11.1 is out of date" notice; the wrapper version is pinned deliberately to match
+AGP 8.7.3.
+
+### Downloading the debug APK
+
+1. Open the repository on GitHub → **Actions** tab.
+2. Select the **Android CI** workflow in the left sidebar.
+3. Open a successful run for the commit you want (green check).
+4. Scroll to the **Artifacts** section at the bottom of the run summary.
+5. Download **`SnipNote-debug-apk`** — a ZIP containing `app-debug.apk`.
+6. Unzip it and install with `adb install app-debug.apk` (the debug build uses the
+   application ID `com.synfusion.snipnote.debug`, so it installs alongside a release build).
+
+Artifacts expire after 14 days; re-run the workflow from **Run workflow** to regenerate one.
 
 ---
 

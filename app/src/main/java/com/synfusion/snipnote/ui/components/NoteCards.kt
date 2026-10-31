@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+
 package com.synfusion.snipnote.ui.components
 
 import androidx.compose.animation.animateColorAsState

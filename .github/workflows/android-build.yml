@@ -1,0 +1,235 @@
+name: Android CI
+
+# Builds the SnipNote debug APK and runs the JVM unit tests.
+# Deliberately minimal: no lint dashboards, no security scanners, no emulator tests, no publishing.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# Least privilege: the job only reads the repository. Artifact upload is authorised by the
+# per-run Actions token issued to actions/upload-artifact and needs no extra scope.
+permissions:
+  contents: read
+
+# A newer push supersedes an in-flight pull-request run; runs on main are never cancelled so a
+# downloadable APK is always produced for the pushed commit.
+concurrency:
+  group: android-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# Values below mirror the repository audit and are not secrets:
+#   Gradle wrapper 8.11.1  -> gradle/wrapper/gradle-wrapper.properties
+#   AGP 8.7.3 / Kotlin 2.0.21 / compileSdk 35 / build-tools 35.0.0
+#                            -> gradle/libs.versions.toml, app/build.gradle.kts
+#   JDK 17: required by AGP 8.7.x and by sourceCompatibility/jvmTarget = 17.
+env:
+  JAVA_VERSION: '17'
+  JAVA_DISTRIBUTION: 'temurin'
+  GRADLE_WRAPPER_VERSION: '8.11.1'
+  ANDROID_COMPILE_SDK: '35'
+  ANDROID_BUILD_TOOLS: '35.0.0'
+  APP_MODULE: ':app'
+  APK_PATH: 'app/build/outputs/apk/debug/app-debug.apk'
+
+jobs:
+  build:
+    name: Build debug APK & unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v6
+        with:
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          java-version: ${{ env.JAVA_VERSION }}
+
+      # Configures the Gradle user-home cache and job summaries. No gradle-version input on
+      # purpose: the committed wrapper decides the Gradle version (and is checksum-validated).
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+        with:
+          packages: >-
+            platform-tools
+            platforms;android-${{ env.ANDROID_COMPILE_SDK }}
+            build-tools;${{ env.ANDROID_BUILD_TOOLS }}
+          log-accepted-android-sdk-licenses: false
+
+      - name: Verify Gradle wrapper and project structure
+        run: |
+          set -euo pipefail
+          fail() { echo "::error::$1"; exit 1; }
+
+          test -f gradle/wrapper/gradle-wrapper.properties || fail "gradle-wrapper.properties is missing"
+          test -f gradle/wrapper/gradle-wrapper.jar || fail "gradle-wrapper.jar is missing - ./gradlew cannot run"
+          test -x ./gradlew || fail "gradlew is missing or not executable"
+          test -f settings.gradle.kts || fail "settings.gradle.kts is missing"
+          test -f build.gradle.kts || fail "build.gradle.kts is missing"
+          test -f app/build.gradle.kts || fail "Android module app/build.gradle.kts is missing"
+          test -f gradle/libs.versions.toml || fail "gradle/libs.versions.toml is missing"
+
+          # Guard against the workflow pointing at a module that does not exist, or at a
+          # different application than the one this pipeline claims to build.
+          grep -Eq 'include\(":app"\)' settings.gradle.kts || fail "settings.gradle.kts does not include :app"
+          grep -Eq 'namespace = "com\.synfusion\.snipnote"' app/build.gradle.kts \
+            || fail "unexpected Android namespace in app/build.gradle.kts"
+          grep -Eq 'testImplementation' app/build.gradle.kts \
+            || fail "app module declares no unit-test dependencies"
+
+          echo "Wrapper declares:"
+          grep -E 'distributionUrl' gradle/wrapper/gradle-wrapper.properties
+          grep -q "gradle-${GRADLE_WRAPPER_VERSION}-bin.zip" gradle/wrapper/gradle-wrapper.properties \
+            || fail "wrapper does not declare the expected Gradle ${GRADLE_WRAPPER_VERSION} distribution"
+
+          echo "Toolchain:"
+          java -version
+          echo "ANDROID_HOME=${ANDROID_HOME:-unset}"
+          ./gradlew --version
+
+      - name: Verify Android SDK components
+        run: |
+          set -euo pipefail
+          sdkmanager --list_installed
+          installed="$(sdkmanager --list_installed)"
+          for component in "platforms;android-${ANDROID_COMPILE_SDK}" "build-tools;${ANDROID_BUILD_TOOLS}" "platform-tools"; do
+            echo "$installed" | grep -qF "$component" \
+              || { echo "::error::Android SDK component not installed: $component"; exit 1; }
+          done
+          echo "Android SDK components OK"
+
+      # Build logs are teed to a file so that, on failure, the compiler diagnostics can be
+      # republished as check annotations (visible in the UI and via the API) and archived.
+      - name: Build debug APK
+        run: |
+          set -uo pipefail
+          set +e   # GitHub runs `bash -e`; a failing build must not skip the diagnostics below
+          ./gradlew ${{ env.APP_MODULE }}:assembleDebug --stacktrace --console=plain 2>&1 | tee gradle-build.log
+          status="${PIPESTATUS[0]}"
+          set -e
+          if [ "$status" -ne 0 ]; then
+            echo "::error::Gradle build failed with exit code ${status}"
+            {
+              # Cause lines first: Gradle's failure block and Kotlin/KSP compiler diagnostics.
+              grep -E '^(\* What went wrong:|\* Where:|\* Try:|Caused by:|e: |error:|> Task .* FAILED|FAILURE:)' gradle-build.log || true
+              # Then a short tail with JVM stack frames stripped out.
+              grep -v -E '^[[:space:]]+at |^[[:space:]]*$' gradle-build.log | tail -n 6
+            } | tr -d '\r' | sed 's/%/%25/g' | awk '!seen[$0]++' | head -n 10 > /tmp/annotations.txt
+            while IFS= read -r line; do printf '::error::%s\n' "$line"; done < /tmp/annotations.txt
+          fi
+          exit "$status"
+
+      - name: Verify the debug APK was produced
+        run: |
+          set -euo pipefail
+          if [ ! -f "${APK_PATH}" ]; then
+            echo "::error::Expected APK not found at ${APK_PATH}"
+            echo "APK files that do exist:"
+            find app/build/outputs -name '*.apk' -print 2>/dev/null || true
+            exit 1
+          fi
+          ls -lh "${APK_PATH}"
+          sha256sum "${APK_PATH}"
+          {
+            echo "### SnipNote debug APK"
+            echo ""
+            echo "| Field | Value |"
+            echo "| --- | --- |"
+            echo "| Path | \`${APK_PATH}\` |"
+            echo "| Size | $(stat -c%s "${APK_PATH}") bytes |"
+            echo "| SHA-256 | \`$(sha256sum "${APK_PATH}" | cut -d' ' -f1)\` |"
+            echo "| Toolchain | Gradle ${GRADLE_WRAPPER_VERSION} · JDK ${JAVA_VERSION} · compileSdk ${ANDROID_COMPILE_SDK} |"
+            echo "| Application ID | com.synfusion.snipnote.debug (debug suffix) |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v7
+        with:
+          name: SnipNote-debug-apk
+          path: ${{ env.APK_PATH }}
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+
+      - name: Run unit tests
+        run: |
+          set -uo pipefail
+          set +e   # as above: keep running so failures are reported as annotations
+          ./gradlew ${{ env.APP_MODULE }}:testDebugUnitTest --stacktrace --console=plain 2>&1 | tee gradle-test.log
+          status="${PIPESTATUS[0]}"
+          set -e
+          if [ "$status" -ne 0 ]; then
+            echo "::error::Unit tests failed with exit code ${status}"
+            {
+              grep -E '^(\* What went wrong:|\* Where:|\* Try:|Caused by:|e: |error:|> Task .* FAILED|FAILURE:|.*tests? completed,.*failed)' gradle-test.log || true
+              grep -v -E '^[[:space:]]+at |^[[:space:]]*$' gradle-test.log | tail -n 6
+            } | tr -d '\r' | sed 's/%/%25/g' | awk '!seen[$0]++' | head -n 10 > /tmp/annotations.txt
+            while IFS= read -r line; do printf '::error::%s\n' "$line"; done < /tmp/annotations.txt
+          fi
+          exit "$status"
+
+      - name: Summarise unit test results
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import glob, os, xml.etree.ElementTree as ET
+          files = sorted(glob.glob("app/build/test-results/testDebugUnitTest/*.xml"))
+          if not files:
+              print("No JUnit XML results found - the test task did not produce reports.")
+              print("::notice title=Unit tests::no JUnit XML reports were produced")
+              raise SystemExit(0)
+          tests = failures = errors = skipped = 0
+          for path in files:
+              root = ET.parse(path).getroot()
+              tests += int(root.get("tests", 0))
+              failures += int(root.get("failures", 0))
+              errors += int(root.get("errors", 0))
+              skipped += int(root.get("skipped", 0))
+          summary = (
+              "### Unit tests (`:app:testDebugUnitTest`)\n\n"
+              f"- Suites: {len(files)}\n"
+              f"- Tests: {tests}\n"
+              f"- Failures: {failures}\n"
+              f"- Errors: {errors}\n"
+              f"- Skipped: {skipped}\n"
+          )
+          print(summary)
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as handle:
+              handle.write(summary)
+          # Also emit the counts as a notice annotation: visible in the PR checks UI and
+          # readable programmatically via the check-runs API.
+          print(f"::notice title=Unit tests::{tests} tests, {failures} failures, {errors} errors, {skipped} skipped")
+          PY
+
+      - name: Upload unit test reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: SnipNote-unit-test-reports
+          path: |
+            app/build/reports/tests/testDebugUnitTest/
+            app/build/test-results/testDebugUnitTest/
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload Gradle logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: SnipNote-build-log
+          path: |
+            gradle-build.log
+            gradle-test.log
+          if-no-files-found: warn
+          retention-days: 7
