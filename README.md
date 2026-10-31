@@ -1,5 +1,7 @@
 # SnipNote
 
+[![Android CI](https://github.com/devjeetx7-synfusion/Prompt-Notebook/actions/workflows/android-build.yml/badge.svg?branch=main)](https://github.com/devjeetx7-synfusion/Prompt-Notebook/actions/workflows/android-build.yml)
+
 SnipNote is an offline-first Android workspace for saving, organising, searching and copying
 **AI prompts, notes, code snippets and links** – with an encrypted **Safe** vault for private
 items. It is a native Kotlin app built with Jetpack Compose + Material 3, MVVM, a repository
@@ -141,6 +143,14 @@ To build from the command line you need `local.properties` with `sdk.dir=/path/t
 
 Instrumentation tests need a device or emulator and are **not** part of CI.
 
+> **Verification status.** The app was authored in a sandbox without a JDK, Android SDK or
+> access to Maven/Google repositories, so nothing could be built there. The GitHub Actions
+> pipeline is what actually exercises the project: `:app:assembleDebug` and
+> `:app:testDebugUnitTest` both pass — **44 unit tests, 0 failures, 0 errors, 0 skipped**
+> (run [41172271425](https://github.com/devjeetx7-synfusion/Prompt-Notebook/actions/runs/41172271425),
+> producing a 19.5 MB `app-debug.apk`). The instrumentation tests have **not** been executed
+> anywhere yet.
+
 ---
 
 ## Continuous integration
@@ -161,6 +171,12 @@ Instrumentation tests need a device or emulator and are **not** part of CI.
 | Permissions | `contents: read` only; no secrets or tokens are used |
 
 The workflow fails if compilation, the APK check or the unit tests fail.
+
+**Last verified run:** [#41172271425](https://github.com/devjeetx7-synfusion/Prompt-Notebook/actions/runs/41172271425)
+— success, 3 m 55 s, 44 unit tests passed; artifacts `SnipNote-debug-apk` (19.5 MB),
+`SnipNote-unit-test-reports`, `SnipNote-build-log`. The only CI noise is an informational
+"Gradle 8.11.1 is out of date" notice; the wrapper version is pinned deliberately to match
+AGP 8.7.3.
 
 ### Downloading the debug APK
 
