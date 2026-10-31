@@ -19,8 +19,8 @@ layer and Room.
 * Four content types: **Prompt**, **Note**, **Code**, **Link**, plus custom tags.
 * Create, read, update, delete, favourite, pin, sort and filter – all persisted in Room.
 * Heuristic content-type detection (URL shape, code structure/indentation, instruction-style
-  wording). Detection is a **suggestion** shown in the editor; it never silently overrides a
-  choice the user made.
+  wording). Detection is a **suggestion** shown as an advisory chip in the editor; it never
+  silently overrides a choice the user made and never blocks typing.
 * Multiline text, indentation, trailing whitespace and Unicode are stored and copied verbatim.
 * One-tap copy with success/failure feedback; the copied string is never truncated.
 
@@ -30,7 +30,8 @@ layer and Room.
 * Favourites, pinned and recent are **filters over the same rows**, never duplicated records.
 * Deleting a category asks explicitly whether its notes are moved to another category or left
   uncategorized – notes are never deleted as a side effect.
-* Bulk selection in list views: favourite, pin, delete.
+* Contextual actions (copy, edit, favourite, move, make private, delete) live in one shared
+  bottom sheet opened by long-press or the row overflow, so no list shows permanent buttons.
 
 ### Search
 * Case-insensitive `LIKE` search across titles and content with escaped wildcards
@@ -63,13 +64,39 @@ layer and Room.
   rejected before anything is written. Per-item failures are reported, not hidden.
 
 ### Design
-* Aurora Glass theme: blurred gradient backdrop (single backdrop blur on API 31+ non-low-RAM
-  devices, gradient-only fallback otherwise), translucent hairlines cards, restrained shadows.
+* **Aurora Glass** palette: primary `#7567F8`, secondary `#55C7E8`, background `#F6F7FC`,
+  text `#20243A`, secondary text `#777D96`; dark mode is deep navy (`#0C0E1A`) with translucent
+  surfaces. Per-type accents come from a single `typeStyle()` helper.
+* One blurred gradient backdrop for the whole app: a single backdrop blur on API 31+ non-low-RAM
+  devices, gradient-only fallback otherwise – never a blur per card.
 * Light, dark and system themes; Material 3 dynamic colour is intentionally not used so the
   brand palette stays consistent.
-* Phone: glass bottom navigation. ≥600 dp: navigation rail. ≥840 dp: rail with labels and
-  multi-column lists.
-* Motion is limited to short fades/slides, colour animation on filters and pins.
+* **Home** holds only branding, search, compact type filters and the recent list – no stats,
+  dashboard cards or duplicate create buttons.
+* **One creation entry point**: the elevated central `+` in the floating navigation pill opens
+  the editor immediately (no Prompt/Code/Link/Note chooser). While the Safe tab is active it
+  opens a private item.
+* Phone: floating glass pill with side margins, hairline border, soft shadow and an elevated
+  central `+`; every scrollable screen reserves `FloatingNavContentPadding` so nothing hides
+  underneath. ≥600 dp: glass navigation rail. ≥840 dp: rail with labels.
+* **Detail** is content-first: type, timestamp, full text, then Copy / Edit / Favorite, with
+  secondary actions (pin, move, private, delete) in the overflow menu.
+* Motion is limited to short fades/slides and colour animation on selection.
+
+### What the redesign removed
+
+Everything below duplicated a control that already existed elsewhere, or pushed content off
+the first screen. All of it was audited before removal so no capability was lost:
+
+| Removed | Replaced by |
+| --- | --- |
+| Four per-type quick-create buttons on Home | The single central `+` (type is suggested in the editor) |
+| Quick-capture sheet + its extra FAB | The same single `+`, which opens the editor directly |
+| `StatsRow` counts and `CategoryShortcuts` grid on Home | Nothing – the same numbers live in Categories and the list headers |
+| Permanent Copy / Edit / Favorite buttons on every card | One contextual action sheet (long-press or overflow) |
+| Full-width `GlassNavigationBar` bottom bar | `FloatingNavPill` with side margins, insets and reserved content padding |
+| Per-card blur and per-card animated fills | One shared backdrop blur + flat translucent surfaces |
+| Legacy `NoteFilterBar`, `SearchField`, `EmptyState` widgets | The shared pill/chip/list-placeholder components |
 
 ---
 
@@ -87,8 +114,9 @@ app/src/main/java/com/synfusion/snipnote/
 │   └── detect/       ContentTypeDetector (pure Kotlin heuristic)
 ├── ui/
 │   ├── home/ categories/ safe/ settings/ search/ browse/ editor/ detail/
-│   ├── components/   Glass surfaces, note cards, filters, empty states
-│   ├── navigation/   Routes, NavHost, bottom bar + rail
+│   ├── components/   Glass surfaces, note rows, action sheet, placeholders
+│   ├── actions/      NoteActions – copy/favorite/move/private/delete for every screen
+│   ├── navigation/   Routes, NavHost, floating pill + rail
 │   └── theme/        Aurora palette, typography
 ├── util/             ClipboardService, TextUtils, TimeFormat
 ├── AppContainer.kt   Manual dependency container (no DI framework needed at this size)
@@ -130,7 +158,7 @@ To build from the command line you need `local.properties` with `sdk.dir=/path/t
 # debug build
 ./gradlew :app:assembleDebug
 
-# JVM unit tests (detection, copy integrity, backup validation, crypto, text/time utils)
+# JVM unit tests (detection, copy integrity, backup validation, crypto, routes, text/time utils)
 ./gradlew :app:testDebugUnitTest
 
 # Instrumentation tests (Room CRUD, categories, search, Safe access control,
@@ -146,10 +174,10 @@ Instrumentation tests need a device or emulator and are **not** part of CI.
 > **Verification status.** The app was authored in a sandbox without a JDK, Android SDK or
 > access to Maven/Google repositories, so nothing could be built there. The GitHub Actions
 > pipeline is what actually exercises the project: `:app:assembleDebug` and
-> `:app:testDebugUnitTest` both pass — **44 unit tests, 0 failures, 0 errors, 0 skipped**
-> (run [41172271425](https://github.com/devjeetx7-synfusion/Prompt-Notebook/actions/runs/41172271425),
-> producing a 19.5 MB `app-debug.apk`). The instrumentation tests have **not** been executed
-> anywhere yet.
+> `:app:testDebugUnitTest` both pass — **48 unit tests, 0 failures, 0 errors, 0 skipped**
+> (run [41176450827](https://github.com/devjeetx7-synfusion/Prompt-Notebook/actions/runs/41176450827),
+> producing a 19,519,880-byte `app-debug.apk`). The instrumentation tests have **not** been
+> executed anywhere yet.
 
 ---
 
@@ -160,9 +188,9 @@ Instrumentation tests need a device or emulator and are **not** part of CI.
 
 | Step | Detail |
 | --- | --- |
-| JDK | Temurin **17** (`actions/setup-java@v4`) |
-| Gradle | Wrapper **8.11.1**, cache via `gradle/actions/setup-gradle@v4` (wrapper JAR checksum validated) |
-| Android SDK | `android-actions/setup-android@v3` with `platforms;android-35`, `build-tools;35.0.0`, `platform-tools` |
+| JDK | Temurin **17** (`actions/setup-java@v6`) |
+| Gradle | Wrapper **8.11.1**, cache via `gradle/actions/setup-gradle@v6` (wrapper JAR checksum validated) |
+| Android SDK | `android-actions/setup-android@v4` with `platforms;android-35`, `build-tools;35.0.0`, `platform-tools` |
 | Pre-flight | Fails early if the wrapper, module path (`:app`), namespace or SDK components are wrong |
 | Build | `./gradlew :app:assembleDebug --stacktrace` |
 | Tests | `./gradlew :app:testDebugUnitTest --stacktrace` |
@@ -172,11 +200,11 @@ Instrumentation tests need a device or emulator and are **not** part of CI.
 
 The workflow fails if compilation, the APK check or the unit tests fail.
 
-**Last verified run:** [#41172271425](https://github.com/devjeetx7-synfusion/Prompt-Notebook/actions/runs/41172271425)
-— success, 3 m 55 s, 44 unit tests passed; artifacts `SnipNote-debug-apk` (19.5 MB),
-`SnipNote-unit-test-reports`, `SnipNote-build-log`. The only CI noise is an informational
-"Gradle 8.11.1 is out of date" notice; the wrapper version is pinned deliberately to match
-AGP 8.7.3.
+**Last verified run:** [#41176450827](https://github.com/devjeetx7-synfusion/Prompt-Notebook/actions/runs/41176450827)
+— success, 3 m 13 s, 48 unit tests passed (0 failures, 0 errors, 0 skipped); artifacts
+`SnipNote-debug-apk` (19,519,880 bytes), `SnipNote-unit-test-reports`, `SnipNote-build-log`.
+The only CI noise is an informational "Gradle 8.11.1 is out of date" notice; the wrapper
+version is pinned deliberately to match AGP 8.7.3.
 
 ### Downloading the debug APK
 
@@ -208,6 +236,7 @@ Artifacts expire after 14 days; re-run the workflow from **Run workflow** to reg
 | Persistence across a close/reopen cycle | `androidTest/.../PersistenceInstrumentedTest.kt` |
 | UI smoke flow | `androidTest/.../MainActivityUiTest.kt` |
 | Text/time/tag helpers | `test/.../TextUtilsTest.kt`, `TimeFormatTest.kt`, `TagTest.kt` |
+| Navigation route encoding / chrome visibility | `test/.../DestinationsTest.kt` |
 
 ---
 

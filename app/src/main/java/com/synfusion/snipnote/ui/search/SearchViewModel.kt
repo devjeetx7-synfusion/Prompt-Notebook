@@ -9,6 +9,7 @@ import com.synfusion.snipnote.domain.model.Note
 import com.synfusion.snipnote.domain.model.NoteFilter
 import com.synfusion.snipnote.domain.model.NoteType
 import com.synfusion.snipnote.domain.model.SortOrder
+import com.synfusion.snipnote.ui.actions.NoteActions
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -39,6 +40,7 @@ data class SearchUiState(
 class SearchViewModel(
     private val repository: NoteRepository,
     categories: CategoryRepository,
+    private val actions: NoteActions,
 ) : ViewModel() {
 
     private val query = MutableStateFlow("")
@@ -91,6 +93,22 @@ class SearchViewModel(
     fun setSort(sort: SortOrder) = extras.update { it.copy(sort = sort) }
 
     fun clearFilters() = extras.update { NoteFilter(sort = it.sort) }
+
+    fun copy(note: Note) {
+        message.value = actions.copy(note)
+    }
+
+    fun moveToCategory(note: Note, categoryId: Long?) = viewModelScope.launch {
+        message.value = actions.moveToCategory(note, categoryId)
+    }
+
+    fun togglePrivate(note: Note) = viewModelScope.launch {
+        message.value = actions.togglePrivate(note)
+    }
+
+    fun delete(note: Note) = viewModelScope.launch {
+        message.value = actions.delete(note)
+    }
 
     fun toggleFavorite(note: Note) = viewModelScope.launch {
         repository.setFavorite(listOf(note.id), !note.isFavorite)

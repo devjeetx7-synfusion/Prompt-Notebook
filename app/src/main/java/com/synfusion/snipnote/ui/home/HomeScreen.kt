@@ -1,6 +1,8 @@
 package com.synfusion.snipnote.ui.home
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -20,33 +23,17 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Code
-import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.PushPin
-import androidx.compose.material.icons.outlined.*
-import androidx.compose.material3.ExtendedFloatingActionButton
-import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material.icons.outlined.Notes
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.Button
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -62,40 +49,41 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.synfusion.snipnote.AppContainer
-import com.synfusion.snipnote.data.repository.CategoryWithCount
-import com.synfusion.snipnote.domain.detect.ContentTypeDetector
+import com.synfusion.snipnote.domain.model.Note
 import com.synfusion.snipnote.domain.model.NoteType
 import com.synfusion.snipnote.ui.SnipViewModelFactories
-import com.synfusion.snipnote.ui.browse.NoteListPreset
-import com.synfusion.snipnote.ui.components.EmptyState
-import com.synfusion.snipnote.ui.components.GlassCard
-import com.synfusion.snipnote.ui.components.NoteTile
-import com.synfusion.snipnote.ui.components.Pill
-import com.synfusion.snipnote.ui.components.SectionHeader
+import com.synfusion.snipnote.ui.components.DeleteNoteDialog
+import com.synfusion.snipnote.ui.components.ListPlaceholder
+import com.synfusion.snipnote.ui.components.MoveCategoryDialog
+import com.synfusion.snipnote.ui.components.NoteAction
+import com.synfusion.snipnote.ui.components.NoteActionSheet
+import com.synfusion.snipnote.ui.components.NoteRow
 import com.synfusion.snipnote.ui.components.SnipIcons
+import com.synfusion.snipnote.ui.navigation.FloatingNavContentPadding
 import com.synfusion.snipnote.ui.theme.LocalAuroraExtras
 
-@OptIn(ExperimentalMaterial3Api::class)
+/**
+ * Home: branding, search, compact type filters and the recent item list.
+ * Every creation path goes through the single "+" in the floating navigation pill.
+ */
 @Composable
 fun HomeScreen(
     container: AppContainer,
-    twoPane: Boolean,
     onOpenNote: (Long) -> Unit,
-    onCreateNote: (NoteType?) -> Unit,
     onOpenSearch: () -> Unit,
-    onOpenList: (String, Long?, NoteType?) -> Unit,
-    onOpenCategories: () -> Unit,
-    onOpenSafe: () -> Unit,
     onOpenSettings: () -> Unit,
+    onEditNote: (Long) -> Unit,
     viewModel: HomeViewModel = viewModel(factory = SnipViewModelFactories.home(container)),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
-    var showCapture by remember { mutableStateOf(false) }
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var actionTarget by remember { mutableStateOf<Note?>(null) }
+    var moveTarget by remember { mutableStateOf<Note?>(null) }
+    var deleteTarget by remember { mutableStateOf<Note?>(null) }
 
     LaunchedEffect(state.message, state.error) {
         val text = state.message ?: state.error
@@ -108,367 +96,290 @@ fun HomeScreen(
     Scaffold(
         containerColor = Color.Transparent,
         snackbarHost = { SnackbarHost(snackbarHostState) },
-        floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = { showCapture = true },
-                icon = { Icon(Icons.Filled.Bolt, contentDescription = null) },
-                text = { Text("Quick capture") },
-            )
-        },
     ) { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 8.dp, bottom = 110.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            contentPadding = PaddingValues(
+                start = 18.dp,
+                end = 18.dp,
+                top = 8.dp,
+                bottom = FloatingNavContentPadding,
+            ),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            item { HomeHeader(state.greeting, onOpenSearch, onOpenSafe, onOpenSettings) }
-            item { SearchLauncher(onOpenSearch) }
-            item { QuickActions(onCreateNote = onCreateNote) }
             item {
-                StatsRow(
-                    counts = state.counts,
-                    onOpenList = { preset -> onOpenList(preset, null, null) },
+                HomeHeader(
+                    onOpenSearch = onOpenSearch,
+                    onOpenSettings = onOpenSettings,
+                )
+            }
+            item { HeroHeadline() }
+            item { SearchPill(onOpenSearch) }
+            item {
+                TypeFilterRow(
+                    selected = state.filterType,
+                    onSelect = viewModel::setFilter,
                 )
             }
             item {
-                SectionHeader(
-                    title = "Categories",
-                    actionLabel = "See all",
-                    onAction = onOpenCategories,
-                )
-            }
-            item {
-                CategoryShortcuts(
-                    categories = state.categories,
-                    onOpen = { category -> onOpenList(NoteListPreset.ALL, category.category.id, null) },
-                    onOpenAll = onOpenCategories,
-                )
-            }
-            item {
-                SectionHeader(
-                    title = if (state.counts.favorites > 0) "Recent" else "Recent notes",
-                    actionLabel = "Favorites (${state.counts.favorites})",
-                    onAction = { onOpenList(NoteListPreset.FAVORITES, null, null) },
-                )
-            }
-            if (state.recent.isEmpty()) {
-                item {
-                    EmptyState(
-                        icon = Icons.Outlined.Notes,
-                        title = "Nothing saved yet",
-                        message = "Capture a prompt, a note, a snippet of code or a link. Everything stays on this device.",
-                        actionLabel = "Create your first note",
-                        onAction = { onCreateNote(null) },
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = when (state.filterType) {
+                            null -> "Recent"
+                            NoteType.PROMPT -> "Prompts"
+                            NoteType.CODE -> "Code"
+                            NoteType.LINK -> "Links"
+                            NoteType.NOTE -> "Notes"
+                        },
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.weight(1f),
                     )
-                }
-            } else {
-                val columns = if (twoPane) 3 else 2
-                val rows = state.recent.chunked(columns)
-                items(rows.size) { index ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-                        rows[index].forEach { note ->
-                            NoteTile(
-                                note = note,
-                                onClick = { onOpenNote(note.id) },
-                                modifier = Modifier.weight(1f),
-                            )
-                        }
-                        repeat(columns - rows[index].size) {
-                            Spacer(modifier = Modifier.weight(1f))
-                        }
-                    }
-                }
-                item {
-                    TextButton(onClick = { onOpenList(NoteListPreset.ALL, null, null) }) {
-                        Text("Browse all ${state.counts.total} notes")
-                    }
-                }
-            }
-            if (state.error != null) {
-                item {
-                    GlassCard(fill = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f)) {
+                    if (state.totalCount > state.items.size) {
                         Text(
-                            text = state.error ?: "",
-                            color = MaterialTheme.colorScheme.onErrorContainer,
-                            style = MaterialTheme.typography.bodyMedium,
+                            text = "${state.totalCount} total",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }
             }
+            if (state.items.isEmpty()) {
+                item {
+                    ListPlaceholder(
+                        icon = Icons.Outlined.Notes,
+                        title = if (state.filterType == null) "Nothing captured yet" else "Nothing here yet",
+                        message = if (state.filterType == null) {
+                            "Use the + button below to save a prompt, a note, code or a link. Everything stays on this device."
+                        } else {
+                            "You have no ${state.filterType?.label?.lowercase()} saved yet. Add one with the + button below."
+                        },
+                    )
+                }
+            } else {
+                items(state.items, key = { it.id }) { note ->
+                    NoteRow(
+                        note = note,
+                        onClick = { onOpenNote(note.id) },
+                        onLongClick = { actionTarget = note },
+                        onOverflow = { actionTarget = note },
+                    )
+                }
+                if (state.totalCount > state.items.size) {
+                    item {
+                        Text(
+                            text = "Showing the ${state.items.size} most recent of ${state.totalCount}. Use search to find the rest.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 4.dp),
+                        )
+                    }
+                }
+            }
+            item { Spacer(modifier = Modifier.height(8.dp)) }
         }
     }
 
-    if (showCapture) {
-        ModalBottomSheet(
-            onDismissRequest = { showCapture = false },
-            sheetState = sheetState,
-            containerColor = MaterialTheme.colorScheme.surface,
-        ) {
-            QuickCaptureSheet(
-                onSave = { text, type ->
-                    viewModel.quickCapture(text, type) { id ->
-                        showCapture = false
-                        onOpenNote(id)
-                    }
-                },
-                onDismiss = { showCapture = false },
-                onOpenFullEditor = { type ->
-                    showCapture = false
-                    onCreateNote(type)
-                },
-            )
-        }
+    actionTarget?.let { note ->
+        NoteActionSheet(
+            note = note,
+            onDismiss = { actionTarget = null },
+            onAction = { action ->
+                actionTarget = null
+                when (action) {
+                    NoteAction.COPY -> viewModel.copy(note)
+                    NoteAction.EDIT -> onEditNote(note.id)
+                    NoteAction.TOGGLE_FAVORITE -> viewModel.toggleFavorite(note)
+                    NoteAction.MOVE_CATEGORY -> moveTarget = note
+                    NoteAction.TOGGLE_PRIVATE -> viewModel.togglePrivate(note)
+                    NoteAction.DELETE -> deleteTarget = note
+                }
+            },
+        )
+    }
+
+    moveTarget?.let { note ->
+        MoveCategoryDialog(
+            categories = state.categories,
+            currentCategoryId = note.category?.id,
+            onPick = { categoryId ->
+                viewModel.moveToCategory(note, categoryId)
+                moveTarget = null
+            },
+            onDismiss = { moveTarget = null },
+        )
+    }
+
+    deleteTarget?.let { note ->
+        DeleteNoteDialog(
+            title = note.displayTitle,
+            onConfirm = {
+                viewModel.delete(note)
+                deleteTarget = null
+            },
+            onDismiss = { deleteTarget = null },
+        )
     }
 }
 
 @Composable
-private fun HomeHeader(
-    greeting: String,
-    onOpenSearch: () -> Unit,
-    onOpenSafe: () -> Unit,
-    onOpenSettings: () -> Unit,
-) {
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+private fun HomeHeader(onOpenSearch: () -> Unit, onOpenSettings: () -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().statusBarsPadding()) {
         Box(
             modifier = Modifier
-                .size(40.dp)
-                .clip(CircleShape)
+                .size(34.dp)
+                .clip(RoundedCornerShape(11.dp))
                 .background(
                     Brush.linearGradient(
-                        listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.secondary),
+                        listOf(MaterialTheme.colorScheme.primary, LocalAuroraExtras.current.pink),
                     ),
                 ),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(Icons.Filled.AutoAwesome, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+            Icon(
+                imageVector = SnipIcons.type(NoteType.PROMPT),
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(18.dp),
+            )
         }
         Spacer(modifier = Modifier.width(10.dp))
-        Column(modifier = Modifier.weight(1f)) {
+        Text(
+            text = "SnipNote",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.weight(1f),
+        )
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(CircleShape)
+                .background(LocalAuroraExtras.current.chipFill)
+                .clickable(role = Role.Button, onClick = onOpenSearch),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(Icons.Filled.Search, contentDescription = "Search", modifier = Modifier.size(19.dp))
+        }
+        Spacer(modifier = Modifier.width(8.dp))
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.16f))
+                .clickable(role = Role.Button, onClick = onOpenSettings),
+            contentAlignment = Alignment.Center,
+        ) {
             Text(
-                text = "SnipNote",
-                style = MaterialTheme.typography.titleMedium,
+                text = "S",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary,
                 fontWeight = FontWeight.SemiBold,
             )
-            Text(
-                text = "$greeting – your prompts, notes and code in one quiet place.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        IconButton(onClick = onOpenSearch) {
-            Icon(Icons.Filled.Search, contentDescription = "Search")
-        }
-        IconButton(onClick = onOpenSafe) {
-            Icon(Icons.Filled.Lock, contentDescription = "Safe")
-        }
-        IconButton(onClick = onOpenSettings) {
-            Icon(Icons.Filled.Settings, contentDescription = "Settings")
         }
     }
 }
 
 @Composable
-private fun SearchLauncher(onOpenSearch: () -> Unit) {
+private fun HeroHeadline() {
+    Column(modifier = Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 2.dp)) {
+        Text(
+            text = "Your ideas,",
+            style = MaterialTheme.typography.headlineLarge.copy(fontSize = 34.sp, lineHeight = 40.sp),
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        Text(
+            text = "organized.",
+            style = MaterialTheme.typography.headlineLarge.copy(
+                fontSize = 34.sp,
+                lineHeight = 40.sp,
+                brush = Brush.linearGradient(
+                    listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.secondary),
+                ),
+            ),
+        )
+    }
+}
+
+@Composable
+private fun SearchPill(onOpenSearch: () -> Unit) {
     val extras = LocalAuroraExtras.current
-    val shape = RoundedCornerShape(18.dp)
+    val shape = RoundedCornerShape(20.dp)
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(shape)
-            .background(extras.glassFill, shape)
-            .padding(horizontal = 16.dp, vertical = 14.dp),
+            .background(extras.glassFill)
+            .clickable(role = Role.Button, onClick = onOpenSearch)
+            .padding(horizontal = 16.dp, vertical = 15.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(Icons.Filled.Search, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        Icon(
+            Icons.Filled.Search,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(19.dp),
+        )
         Spacer(modifier = Modifier.width(10.dp))
         Text(
-            text = "Search titles and content",
+            text = "Search notes, prompts, code, links…",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.weight(1f),
         )
-        TextButton(onClick = onOpenSearch) { Text("Search") }
-    }
-}
-
-@Composable
-private fun QuickActions(
-    onCreateNote: (NoteType?) -> Unit,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            QuickAction(Icons.Filled.AutoAwesome, "New prompt", NoteType.PROMPT, onCreateNote, Modifier.weight(1f))
-            QuickAction(Icons.Outlined.EditNote, "New note", NoteType.NOTE, onCreateNote, Modifier.weight(1f))
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            QuickAction(Icons.Filled.Code, "New code", NoteType.CODE, onCreateNote, Modifier.weight(1f))
-            QuickAction(Icons.Filled.Link, "Save link", NoteType.LINK, onCreateNote, Modifier.weight(1f))
-        }
-    }
-}
-
-@Composable
-private fun QuickAction(
-    icon: ImageVector,
-    label: String,
-    type: NoteType,
-    onClick: (NoteType) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val extras = LocalAuroraExtras.current
-    val shape = RoundedCornerShape(16.dp)
-    Row(
-        modifier = modifier
-            .clip(shape)
-            .background(extras.glassFill, shape)
-            .clickable(role = Role.Button) { onClick(type) }
-            .padding(horizontal = 12.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
-        Spacer(modifier = Modifier.width(8.dp))
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelLarge,
-            maxLines = 1,
-            modifier = Modifier.weight(1f),
+        Icon(
+            Icons.Filled.AutoAwesome,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.65f),
+            modifier = Modifier.size(17.dp),
         )
-        Icon(Icons.Filled.Add, contentDescription = "Create $label", modifier = Modifier.size(16.dp))
     }
 }
 
 @Composable
-private fun StatsRow(counts: Counts, onOpenList: (String) -> Unit) {
-    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-        StatCard("All", counts.total.toString(), Icons.Outlined.Notes, Modifier.weight(1f)) {
-            onOpenList(NoteListPreset.ALL)
-        }
-        StatCard("Favorites", counts.favorites.toString(), Icons.Filled.Star, Modifier.weight(1f)) {
-            onOpenList(NoteListPreset.FAVORITES)
-        }
-        StatCard("Pinned", counts.pinned.toString(), Icons.Filled.PushPin, Modifier.weight(1f)) {
-            onOpenList(NoteListPreset.PINNED)
+private fun TypeFilterRow(selected: NoteType?, onSelect: (NoteType?) -> Unit) {
+    val options: List<Pair<String, ImageVector?>> = listOf(
+        "All" to null,
+        "Prompts" to Icons.Filled.AutoAwesome,
+        "Code" to Icons.Filled.Code,
+        "Links" to Icons.Filled.Link,
+        "Notes" to Icons.Outlined.Notes,
+    )
+    val types: List<NoteType?> = listOf(null, NoteType.PROMPT, NoteType.CODE, NoteType.LINK, NoteType.NOTE)
+    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        items(options.size) { index ->
+            TypeFilterChip(
+                label = options[index].first,
+                icon = options[index].second,
+                selected = selected == types[index],
+                onClick = { onSelect(if (selected == types[index]) null else types[index]) },
+            )
         }
     }
 }
 
 @Composable
-private fun StatCard(
+private fun TypeFilterChip(
     label: String,
-    value: String,
-    icon: ImageVector,
-    modifier: Modifier = Modifier,
+    icon: ImageVector?,
+    selected: Boolean,
     onClick: () -> Unit,
 ) {
     val extras = LocalAuroraExtras.current
-    val shape = RoundedCornerShape(18.dp)
-    Column(
-        modifier = modifier
+    val shape = RoundedCornerShape(50)
+    val container = if (selected) MaterialTheme.colorScheme.primary else extras.chipFill
+    val content = if (selected) Color.White else MaterialTheme.colorScheme.onSurface
+    Row(
+        modifier = Modifier
             .clip(shape)
-            .background(extras.glassFill, shape)
-            .clickable(role = Role.Button, onClick = onClick)
-            .padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(2.dp),
+            .background(container, shape)
+            .then(if (selected) Modifier else Modifier.border(BorderStroke(1.dp, extras.glassBorder), shape))
+            .clickable(role = Role.Tab, onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 9.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
-        Text(value, style = MaterialTheme.typography.headlineSmall)
-        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-    }
-}
-
-@Composable
-private fun CategoryShortcuts(
-    categories: List<CategoryWithCount>,
-    onOpen: (CategoryWithCount) -> Unit,
-    onOpenAll: () -> Unit,
-) {
-    if (categories.isEmpty()) {
-        GlassCard(onClick = onOpenAll) {
-            Text("Create a category to group your snippets", style = MaterialTheme.typography.bodyMedium)
+        if (icon != null) {
+            Icon(icon, contentDescription = null, tint = content, modifier = Modifier.size(15.dp))
         }
-        return
-    }
-    LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        items(categories.take(10), key = { it.category.id }) { category ->
-            val color = Color(category.category.colorArgb)
-            Row(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(color.copy(alpha = 0.18f))
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Icon(
-                    imageVector = SnipIcons.category(category.category.iconKey),
-                    contentDescription = null,
-                    tint = color,
-                    modifier = Modifier.size(16.dp),
-                )
-                Text(category.category.name, style = MaterialTheme.typography.labelLarge, maxLines = 1)
-                Text(
-                    category.itemCount.toString(),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                TextButton(onClick = { onOpen(category) }, modifier = Modifier.height(28.dp)) { Text("Open") }
-            }
-        }
-    }
-}
-
-/** Fast, single-field capture. Type is auto-detected but always editable. */
-@Composable
-private fun QuickCaptureSheet(
-    onSave: (String, NoteType) -> Unit,
-    onDismiss: () -> Unit,
-    onOpenFullEditor: (NoteType?) -> Unit,
-) {
-    var text by remember { mutableStateOf("") }
-    val detection = remember(text) { ContentTypeDetector.detect(text) }
-    var type by remember { mutableStateOf(NoteType.NOTE) }
-    LaunchedEffect(detection) {
-        if (detection.isConfident) type = detection.suggestedType
-    }
-    Column(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Quick capture", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-            IconButton(onClick = onDismiss) { Icon(Icons.Filled.Close, contentDescription = "Close") }
-        }
-        OutlinedTextField(
-            value = text,
-            onValueChange = { text = it },
-            modifier = Modifier.fillMaxWidth().height(180.dp),
-            placeholder = { Text("Paste a prompt, a link or a snippet…") },
-            label = { Text("Content") },
-        )
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            NoteType.entries.forEach { option ->
-                Pill(
-                    label = option.label,
-                    selected = type == option,
-                    onClick = { type = option },
-                )
-            }
-        }
-        if (detection.isConfident) {
-            Text(
-                text = "Detected ${detection.suggestedType.label.lowercase()} – ${detection.reason.lowercase()}",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-            Button(
-                onClick = { onSave(text, type) },
-                enabled = text.isNotBlank(),
-                modifier = Modifier.weight(1f),
-            ) { Text("Save") }
-            TextButton(onClick = { onOpenFullEditor(type) }) { Text("Full editor") }
-        }
-        Spacer(modifier = Modifier.height(16.dp))
+        Text(label, style = MaterialTheme.typography.labelLarge, color = content, maxLines = 1)
     }
 }

@@ -1,65 +1,91 @@
 package com.synfusion.snipnote.ui.search
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.SearchOff
-import androidx.compose.material.icons.outlined.Tune
-import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.synfusion.snipnote.AppContainer
+import com.synfusion.snipnote.domain.model.Note
+import com.synfusion.snipnote.domain.model.NoteType
 import com.synfusion.snipnote.ui.SnipViewModelFactories
-import com.synfusion.snipnote.ui.components.EmptyState
-import com.synfusion.snipnote.ui.components.NoteFilterBar
+import com.synfusion.snipnote.ui.components.DeleteNoteDialog
+import com.synfusion.snipnote.ui.components.ListPlaceholder
+import com.synfusion.snipnote.ui.components.MoveCategoryDialog
+import com.synfusion.snipnote.ui.components.NoteAction
+import com.synfusion.snipnote.ui.components.NoteActionSheet
 import com.synfusion.snipnote.ui.components.NoteRow
-import com.synfusion.snipnote.ui.components.ResultSummary
-import com.synfusion.snipnote.ui.components.SearchField
+import com.synfusion.snipnote.ui.components.SnipIcons
+import com.synfusion.snipnote.ui.theme.LocalAuroraExtras
 
 /**
- * Searches titles and content across ordinary notes only. Safe rows are filtered out in SQL,
- * so they cannot appear here even while the Safe workspace is unlocked.
+ * Search over non-private notes only – the repository excludes Safe items, so a locked Safe can
+ * never leak titles or content through this screen.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SearchScreen(
     container: AppContainer,
     onOpenNote: (Long) -> Unit,
     onBack: () -> Unit,
+    onEditNote: (Long) -> Unit = {},
     viewModel: SearchViewModel = viewModel(factory = SnipViewModelFactories.search(container)),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val focusRequester = remember { FocusRequester() }
-    val keyboard = LocalSoftwareKeyboardController.current
+    var actionTarget by remember { mutableStateOf<Note?>(null) }
+    var moveTarget by remember { mutableStateOf<Note?>(null) }
+    var deleteTarget by remember { mutableStateOf<Note?>(null) }
 
-    LaunchedEffect(Unit) { focusRequester.requestFocus() }
+    LaunchedEffect(Unit) {
+        // The field is attached in the same frame; retry once instead of crashing when it is not.
+        runCatching { focusRequester.requestFocus() }
+    }
     LaunchedEffect(state.message) {
         state.message?.let {
             snackbarHostState.showSnackbar(it)
@@ -70,69 +96,153 @@ fun SearchScreen(
     Scaffold(
         containerColor = Color.Transparent,
         snackbarHost = { SnackbarHost(snackbarHostState) },
-        topBar = {
-            TopAppBar(
-                title = { Text("Search", style = MaterialTheme.typography.titleMedium) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = "Back") }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
-            )
-        },
     ) { padding ->
-        Column(modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 18.dp)) {
-            SearchField(
-                value = state.query,
-                onValueChange = viewModel::onQueryChange,
-                onSearch = { keyboard?.hide() },
-                modifier = Modifier.focusRequester(focusRequester),
-            )
-            Column(modifier = Modifier.padding(vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                NoteFilterBar(
-                    selectedType = state.filter.type,
-                    favoritesOnly = state.filter.favoritesOnly,
-                    pinnedOnly = state.filter.pinnedOnly,
-                    categories = state.categories,
-                    selectedCategoryId = state.filter.categoryId,
-                    sort = state.filter.sort,
-                    onTypeSelected = viewModel::setType,
-                    onToggleFavorites = viewModel::toggleFavoritesOnly,
-                    onTogglePinned = viewModel::togglePinnedOnly,
-                    onCategorySelected = viewModel::setCategory,
-                    onSortSelected = viewModel::setSort,
-                    onClear = {
-                        viewModel.clearFilters()
-                        viewModel.onQueryChange("")
-                    },
-                )
-                if (state.hasQuery) ResultSummary(state.results.size, "result")
-            }
-
-            when {
-                !state.hasQuery -> EmptyState(
-                    icon = Icons.Outlined.Tune,
-                    title = "Search everything you saved",
-                    message = "Type a word from a title or the body of a note. Combine with type, category, favorite and pinned filters.",
-                )
-                state.results.isEmpty() -> EmptyState(
-                    icon = Icons.Outlined.SearchOff,
-                    title = "No matches",
-                    message = "Nothing matches \"${state.query.ifBlank { "these filters" }}\". Try a shorter word or clear the filters.",
-                )
-                else -> LazyColumn(
-                    modifier = Modifier.fillMaxWidth(),
-                    contentPadding = PaddingValues(bottom = 100.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(padding),
+            contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 8.dp, bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            item {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth().statusBarsPadding(),
                 ) {
-                    items(state.results, key = { it.id }) { note ->
-                        NoteRow(
-                            note = note,
-                            onClick = { onOpenNote(note.id) },
-                            onToggleFavorite = { viewModel.toggleFavorite(note) },
-                        )
+                    IconButton(onClick = onBack, modifier = Modifier.size(38.dp)) {
+                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back", modifier = Modifier.size(20.dp))
+                    }
+                    Text(
+                        text = "Search",
+                        style = MaterialTheme.typography.titleLarge,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+            item {
+                val shape = RoundedCornerShape(18.dp)
+                OutlinedTextField(
+                    value = state.query,
+                    onValueChange = viewModel::onQueryChange,
+                    placeholder = { Text("Search notes, prompts, code, links…", style = MaterialTheme.typography.bodyMedium) },
+                    leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                    trailingIcon = {
+                        if (state.query.isNotEmpty()) {
+                            IconButton(onClick = { viewModel.onQueryChange("") }) {
+                                Icon(Icons.Filled.Close, contentDescription = "Clear search", modifier = Modifier.size(16.dp))
+                            }
+                        }
+                    },
+                    singleLine = true,
+                    shape = shape,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                    modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
+                )
+            }
+            item {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    item {
+                        Chip("All", null, state.filter.type == null) { viewModel.setType(null) }
+                    }
+                    items(NoteType.entries) { type ->
+                        Chip(type.label, SnipIcons.type(type), state.filter.type == type) {
+                            viewModel.setType(if (state.filter.type == type) null else type)
+                        }
+                    }
+                    item {
+                        Chip("Favorites", Icons.Outlined.StarBorder, state.filter.favoritesOnly) {
+                            viewModel.toggleFavoritesOnly()
+                        }
                     }
                 }
             }
+            if (!state.hasQuery) {
+                item {
+                    Text(
+                        text = "Search covers titles, content, tags and categories. Items inside the Safe are never included.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                }
+            } else if (state.results.isEmpty()) {
+                item {
+                    ListPlaceholder(
+                        icon = Icons.Outlined.SearchOff,
+                        title = "No results",
+                        message = "Nothing matches \"${state.query}\". Private Safe items are excluded from search by design.",
+                    )
+                }
+            } else {
+                items(state.results, key = { it.id }) { note ->
+                    NoteRow(
+                        note = note,
+                        onClick = { onOpenNote(note.id) },
+                        onLongClick = { actionTarget = note },
+                        onOverflow = { actionTarget = note },
+                    )
+                }
+            }
         }
+    }
+
+    actionTarget?.let { note ->
+        NoteActionSheet(
+            note = note,
+            onDismiss = { actionTarget = null },
+            onAction = { action ->
+                actionTarget = null
+                when (action) {
+                    NoteAction.COPY -> viewModel.copy(note)
+                    NoteAction.EDIT -> onEditNote(note.id)
+                    NoteAction.TOGGLE_FAVORITE -> viewModel.toggleFavorite(note)
+                    NoteAction.MOVE_CATEGORY -> moveTarget = note
+                    NoteAction.TOGGLE_PRIVATE -> viewModel.togglePrivate(note)
+                    NoteAction.DELETE -> deleteTarget = note
+                }
+            },
+        )
+    }
+
+    moveTarget?.let { note ->
+        MoveCategoryDialog(
+            categories = state.categories.map { it.category },
+            currentCategoryId = note.category?.id,
+            onPick = { targetId ->
+                viewModel.moveToCategory(note, targetId)
+                moveTarget = null
+            },
+            onDismiss = { moveTarget = null },
+        )
+    }
+
+    deleteTarget?.let { note ->
+        DeleteNoteDialog(
+            title = note.displayTitle,
+            onConfirm = {
+                viewModel.delete(note)
+                deleteTarget = null
+            },
+            onDismiss = { deleteTarget = null },
+        )
+    }
+}
+
+@Composable
+private fun Chip(label: String, icon: ImageVector?, selected: Boolean, onClick: () -> Unit) {
+    val extras = LocalAuroraExtras.current
+    val shape = RoundedCornerShape(50)
+    val container = if (selected) MaterialTheme.colorScheme.primary else extras.chipFill
+    val content = if (selected) Color.White else MaterialTheme.colorScheme.onSurface
+    Row(
+        modifier = Modifier
+            .clip(shape)
+            .background(container, shape)
+            .then(if (selected) Modifier else Modifier.border(BorderStroke(1.dp, extras.glassBorder), shape))
+            .clickable(role = Role.Tab, onClick = onClick)
+            .padding(horizontal = 13.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        if (icon != null) Icon(icon, contentDescription = null, tint = content, modifier = Modifier.size(14.dp))
+        Text(label, style = MaterialTheme.typography.labelMedium, color = content, maxLines = 1)
     }
 }

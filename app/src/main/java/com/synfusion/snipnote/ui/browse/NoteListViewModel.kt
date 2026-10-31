@@ -3,12 +3,15 @@ package com.synfusion.snipnote.ui.browse
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.synfusion.snipnote.data.repository.CategoryRepository
 import com.synfusion.snipnote.data.repository.NoteRepository
 import com.synfusion.snipnote.data.repository.SettingsRepository
+import com.synfusion.snipnote.domain.model.Category
 import com.synfusion.snipnote.domain.model.Note
 import com.synfusion.snipnote.domain.model.NoteFilter
 import com.synfusion.snipnote.domain.model.NoteType
 import com.synfusion.snipnote.domain.model.SortOrder
+import com.synfusion.snipnote.ui.actions.NoteActions
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -29,6 +32,7 @@ data class NoteListUiState(
     val error: String? = null,
     val message: String? = null,
     val preset: String = NoteListPreset.ALL,
+    val categories: List<Category> = emptyList(),
 ) {
     val selecting: Boolean get() = selection.isNotEmpty()
 }
@@ -45,7 +49,11 @@ class NoteListViewModel(
     private val repository: NoteRepository,
     savedStateHandle: SavedStateHandle,
     settings: SettingsRepository? = null,
+    private val actions: NoteActions? = null,
+    categories: CategoryRepository? = null,
 ) : ViewModel() {
+
+    private val categoryList = MutableStateFlow<List<Category>>(emptyList())
 
     private val preset: String = savedStateHandle.get<String>("preset") ?: NoteListPreset.ALL
     private val initialCategoryId: Long? = savedStateHandle.get<Long>("categoryId")?.takeIf { it > 0 }
@@ -68,6 +76,13 @@ class NoteListViewModel(
     private var sortChosenByUser = false
 
     init {
+        if (categories != null) {
+            viewModelScope.launch {
+                categories.observeCategories().catch { emit(emptyList()) }.collect { list ->
+                    categoryList.value = list
+                }
+            }
+        }
         if (settings != null) {
             viewModelScope.launch {
                 val stored = settings.settings.first().defaultSort
@@ -83,7 +98,13 @@ class NoteListViewModel(
         }
     }
 
-    val state: StateFlow<NoteListUiState> = combine(notesFlow, filter, selection, transient) { notes, currentFilter, selected, extra ->
+    val state: StateFlow<NoteListUiState> = combine(
+        notesFlow,
+        filter,
+        selection,
+        transient,
+        categoryList,
+    ) { notes, currentFilter, selected, extra, cats ->
         NoteListUiState(
             notes = notes,
             filter = currentFilter,
@@ -92,6 +113,7 @@ class NoteListViewModel(
             error = extra.error,
             message = extra.message,
             preset = preset,
+            categories = cats,
         )
     }.stateIn(
         viewModelScope,
@@ -147,6 +169,26 @@ class NoteListViewModel(
         repository.setFavorite(ids, true)
         selection.update { emptySet() }
         transient.update { it.copy(message = "${ids.size} note(s) added to favorites") }
+    }
+
+    fun copy(note: Note) {
+        val impl = actions ?: return
+        transient.update { it.copy(message = impl.copy(note)) }
+    }
+
+    fun moveToCategory(note: Note, categoryId: Long?) = viewModelScope.launch {
+        val impl = actions ?: return@launch
+        transient.update { it.copy(message = impl.moveToCategory(note, categoryId)) }
+    }
+
+    fun togglePrivate(note: Note) = viewModelScope.launch {
+        val impl = actions ?: return@launch
+        transient.update { it.copy(message = impl.togglePrivate(note)) }
+    }
+
+    fun delete(note: Note) = viewModelScope.launch {
+        val impl = actions ?: return@launch
+        transient.update { it.copy(message = impl.delete(note)) }
     }
 
     fun clearMessage() = transient.update { Transient() }

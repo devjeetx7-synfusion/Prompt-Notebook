@@ -12,9 +12,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -25,11 +25,12 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.outlined.Category
+import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
@@ -54,6 +55,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -62,18 +65,24 @@ import com.synfusion.snipnote.AppContainer
 import com.synfusion.snipnote.data.repository.CategoryWithCount
 import com.synfusion.snipnote.domain.model.CategoryIcons
 import com.synfusion.snipnote.ui.SnipViewModelFactories
-import com.synfusion.snipnote.ui.components.EmptyState
+import com.synfusion.snipnote.ui.components.ListPlaceholder
 import com.synfusion.snipnote.ui.components.SnipIcons
+import com.synfusion.snipnote.ui.navigation.FloatingNavContentPadding
 import com.synfusion.snipnote.ui.theme.CategoryPalette
 import com.synfusion.snipnote.ui.theme.LocalAuroraExtras
 
+/**
+ * Categories: compact rows with icon, name and item count. Favorites and pinned remain filters
+ * (see Home / search) rather than separate stored lists.
+ */
 @Composable
 fun CategoriesScreen(
     container: AppContainer,
-    twoPane: Boolean,
     onOpenCategory: (Long) -> Unit,
     onOpenTag: (Long) -> Unit,
     onOpenAll: () -> Unit,
+    onOpenFavorites: () -> Unit,
+    onOpenPinned: () -> Unit,
     viewModel: CategoriesViewModel = viewModel(factory = SnipViewModelFactories.categories(container)),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -88,39 +97,76 @@ fun CategoriesScreen(
         }
     }
 
-    Scaffold(containerColor = Color.Transparent, snackbarHost = { SnackbarHost(snackbarHostState) }) { padding ->
+    Scaffold(
+        containerColor = Color.Transparent,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+    ) { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 12.dp, bottom = 100.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+            contentPadding = PaddingValues(
+                start = 18.dp,
+                end = 18.dp,
+                top = 8.dp,
+                bottom = FloatingNavContentPadding,
+            ),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             item {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth().statusBarsPadding().padding(bottom = 6.dp),
+                ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Categories", style = MaterialTheme.typography.headlineMedium)
+                        Text("Categories", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
                         Text(
                             "${state.categories.size} categories · ${state.totalItems} notes",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
-                    Button(onClick = viewModel::openCreate) {
-                        Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("New")
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.14f))
+                            .clickable(role = Role.Button, onClick = viewModel::openCreate),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            Icons.Filled.Add,
+                            contentDescription = "New category",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp),
+                        )
                     }
                 }
             }
 
             item {
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OutlinedButtonPill("All notes", Icons.Outlined.Category, onOpenAll)
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    item {
+                        FilterChipButton(label = "All notes", icon = SnipIcons.category(CategoryIcons.DEFAULT), onClick = onOpenAll)
+                    }
+                    item {
+                        FilterChipButton(
+                            label = "Favorites",
+                            icon = Icons.Outlined.StarBorder,
+                            onClick = onOpenFavorites,
+                        )
+                    }
+                    item {
+                        FilterChipButton(
+                            label = "Pinned",
+                            icon = Icons.Filled.PushPin,
+                            onClick = onOpenPinned,
+                        )
+                    }
                 }
             }
 
             if (state.categories.isEmpty()) {
                 item {
-                    EmptyState(
+                    ListPlaceholder(
                         icon = Icons.Outlined.Category,
                         title = "No categories yet",
                         message = "Categories keep prompts, code and links apart. Create your first one.",
@@ -129,52 +175,33 @@ fun CategoriesScreen(
                     )
                 }
             } else {
-                val columns = if (twoPane) 3 else 2
-                items(state.categories.chunked(columns).size) { rowIndex ->
-                    val row = state.categories.chunked(columns)[rowIndex]
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-                        row.forEachIndexed { index, category ->
-                            CategoryCard(
-                                item = category,
-                                onOpen = { onOpenCategory(category.category.id) },
-                                onEdit = { viewModel.openEdit(category) },
-                                onDelete = { viewModel.requestDelete(category) },
-                                onMoveUp = if (rowIndex * columns + index > 0) {
-                                    { viewModel.moveCategory(rowIndex * columns + index, rowIndex * columns + index - 1) }
-                                } else null,
-                                onMoveDown = if (rowIndex * columns + index < state.categories.lastIndex) {
-                                    { viewModel.moveCategory(rowIndex * columns + index, rowIndex * columns + index + 1) }
-                                } else null,
-                                modifier = Modifier.weight(1f),
-                            )
-                        }
-                        repeat(columns - row.size) { Spacer(modifier = Modifier.weight(1f)) }
-                    }
+                items(state.categories, key = { it.category.id }) { item ->
+                    CategoryRow(
+                        item = item,
+                        onClick = { onOpenCategory(item.category.id) },
+                        onEdit = { viewModel.openEdit(item) },
+                        onDelete = { viewModel.requestDelete(item) },
+                    )
                 }
             }
 
             if (state.tags.isNotEmpty()) {
                 item {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 8.dp)) {
                         Text("Tags", style = MaterialTheme.typography.titleMedium)
-                        Text(
-                            "Tap a tag to see every note that uses it.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             items(state.tags, key = { it.id }) { tag ->
                                 Row(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(50))
-                                        .background(extras.glassFill)
+                                        .background(extras.chipFill)
                                         .border(BorderStroke(1.dp, extras.glassBorder), RoundedCornerShape(50))
-                                        .clickable { onOpenTag(tag.id) }
+                                        .clickable(role = Role.Button) { onOpenTag(tag.id) }
                                         .padding(horizontal = 12.dp, vertical = 8.dp),
                                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                 ) {
-                                    Text("#${tag.name}", style = MaterialTheme.typography.labelLarge)
+                                    Text("#${tag.name}", style = MaterialTheme.typography.labelMedium)
                                     Text(
                                         tag.itemCount.toString(),
                                         style = MaterialTheme.typography.labelSmall,
@@ -189,10 +216,10 @@ fun CategoriesScreen(
 
             item {
                 Text(
-                    "Deleting a category never deletes its notes – you always choose whether they are moved or left uncategorized.",
-                    style = MaterialTheme.typography.bodySmall,
+                    text = "Deleting a category never deletes its notes – you always choose whether they are moved or left uncategorized.",
+                    style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 8.dp),
+                    modifier = Modifier.padding(top = 6.dp),
                 )
             }
         }
@@ -222,91 +249,91 @@ fun CategoriesScreen(
 }
 
 @Composable
-private fun OutlinedButtonPill(label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) {
+private fun FilterChipButton(
+    label: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    onClick: () -> Unit,
+) {
     val extras = LocalAuroraExtras.current
     val shape = RoundedCornerShape(50)
     Row(
         modifier = Modifier
             .clip(shape)
-            .background(extras.glassFill, shape)
+            .background(extras.chipFill, shape)
             .border(BorderStroke(1.dp, extras.glassBorder), shape)
-            .clickable(onClick = onClick)
+            .clickable(role = Role.Button, onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Icon(icon, contentDescription = null, modifier = Modifier.size(16.dp))
+        Icon(icon, contentDescription = null, modifier = Modifier.size(15.dp), tint = MaterialTheme.colorScheme.primary)
         Text(label, style = MaterialTheme.typography.labelLarge)
     }
 }
 
 @Composable
-private fun CategoryCard(
+private fun CategoryRow(
     item: CategoryWithCount,
-    onOpen: () -> Unit,
+    onClick: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
-    onMoveUp: (() -> Unit)?,
-    onMoveDown: (() -> Unit)?,
-    modifier: Modifier = Modifier,
 ) {
     val color = Color(item.category.colorArgb)
-    val shape = RoundedCornerShape(22.dp)
+    val extras = LocalAuroraExtras.current
+    val shape = RoundedCornerShape(20.dp)
     var menuOpen by remember { mutableStateOf(false) }
-    Column(
-        modifier = modifier
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
             .clip(shape)
-            .background(color.copy(alpha = 0.16f), shape)
-            .border(BorderStroke(1.dp, color.copy(alpha = 0.3f)), shape)
-            .clickable(onClick = onOpen)
-            .padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+            .background(extras.glassFill)
+            .border(BorderStroke(1.dp, extras.glassBorder), shape)
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(start = 12.dp, end = 4.dp, top = 10.dp, bottom = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier.size(34.dp).clip(CircleShape).background(color.copy(alpha = 0.28f)),
-                contentAlignment = Alignment.Center,
-            ) {
+        Box(
+            modifier = Modifier.size(42.dp).clip(RoundedCornerShape(13.dp)).background(color.copy(alpha = if (extras.isDark) 0.28f else 0.18f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                SnipIcons.category(item.category.iconKey),
+                contentDescription = null,
+                tint = color,
+                modifier = Modifier.size(20.dp),
+            )
+        }
+        Spacer(modifier = Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(item.category.name, style = MaterialTheme.typography.titleSmall, maxLines = 1)
+            Text(
+                text = "${item.itemCount} " + if (item.itemCount == 1) "note" else "notes",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Box {
+            IconButton(onClick = { menuOpen = true }, modifier = Modifier.size(36.dp)) {
                 Icon(
-                    SnipIcons.category(item.category.iconKey),
-                    contentDescription = null,
-                    tint = color,
+                    Icons.Filled.MoreVert,
+                    contentDescription = "Options for ${item.category.name}",
                     modifier = Modifier.size(18.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            Spacer(modifier = Modifier.weight(1f))
-            Box {
-                IconButton(onClick = { menuOpen = true }, modifier = Modifier.size(28.dp)) {
-                    Icon(Icons.Filled.MoreVert, contentDescription = "Category options", modifier = Modifier.size(18.dp))
-                }
-                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                    DropdownMenuItem(
-                        text = { Text("Edit") },
-                        leadingIcon = { Icon(Icons.Filled.Edit, contentDescription = null) },
-                        onClick = { menuOpen = false; onEdit() },
-                    )
-                    if (onMoveUp != null) {
-                        DropdownMenuItem(text = { Text("Move earlier") }, onClick = { menuOpen = false; onMoveUp() })
-                    }
-                    if (onMoveDown != null) {
-                        DropdownMenuItem(text = { Text("Move later") }, onClick = { menuOpen = false; onMoveDown() })
-                    }
-                    DropdownMenuItem(
-                        text = { Text("Delete") },
-                        leadingIcon = { Icon(Icons.Filled.Delete, contentDescription = null) },
-                        onClick = { menuOpen = false; onDelete() },
-                    )
-                }
+            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                DropdownMenuItem(
+                    text = { Text("Rename or restyle") },
+                    leadingIcon = { Icon(Icons.Filled.Edit, contentDescription = null) },
+                    onClick = { menuOpen = false; onEdit() },
+                )
+                DropdownMenuItem(
+                    text = { Text("Delete") },
+                    leadingIcon = { Icon(Icons.Filled.Delete, contentDescription = null) },
+                    onClick = { menuOpen = false; onDelete() },
+                )
             }
-        }
-        Text(item.category.name, style = MaterialTheme.typography.titleMedium, maxLines = 1)
-        Text(
-            "${item.itemCount} note" + if (item.itemCount == 1) "" else "s",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        if (item.category.isDefault) {
-            Text("Default", style = MaterialTheme.typography.labelSmall, color = color)
         }
     }
 }
@@ -324,7 +351,7 @@ private fun CategoryEditorDialog(
         onDismissRequest = onDismiss,
         title = { Text(if (state.editingId == null) "New category" else "Edit category") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedTextField(
                     value = state.name,
                     onValueChange = onNameChange,
@@ -340,7 +367,7 @@ private fun CategoryEditorDialog(
                         val selected = state.iconKey == iconKey
                         Box(
                             modifier = Modifier
-                                .size(40.dp)
+                                .size(38.dp)
                                 .clip(CircleShape)
                                 .background(
                                     if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
@@ -353,7 +380,7 @@ private fun CategoryEditorDialog(
                                 SnipIcons.category(iconKey),
                                 contentDescription = iconKey,
                                 tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(20.dp),
+                                modifier = Modifier.size(19.dp),
                             )
                         }
                     }
@@ -364,14 +391,14 @@ private fun CategoryEditorDialog(
                         val selected = state.colorArgb == color
                         Box(
                             modifier = Modifier
-                                .size(32.dp)
+                                .size(30.dp)
                                 .clip(CircleShape)
                                 .background(Color(color))
                                 .clickable { onColorChange(color) },
                             contentAlignment = Alignment.Center,
                         ) {
                             if (selected) {
-                                Icon(Icons.Filled.Check, contentDescription = "Selected", tint = Color.White, modifier = Modifier.size(16.dp))
+                                Icon(Icons.Filled.Check, contentDescription = "Selected", tint = Color.White, modifier = Modifier.size(15.dp))
                             }
                         }
                     }
@@ -402,7 +429,7 @@ private fun DeleteCategoryDialog(
         icon = { Icon(Icons.Filled.Delete, contentDescription = null) },
         title = { Text("Delete \"${category?.category?.name ?: "category"}\"?") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
                     "${category?.itemCount ?: 0} note(s) use this category. Choose what happens to them – no note will be deleted.",
                     style = MaterialTheme.typography.bodyMedium,
@@ -412,36 +439,22 @@ private fun DeleteCategoryDialog(
                     modifier = Modifier.fillMaxWidth().clickable(onClick = onChooseUncategorize),
                 ) {
                     RadioButton(selected = deletion.uncategorize, onClick = onChooseUncategorize)
-                    Text("Keep notes, remove category (uncategorized)", style = MaterialTheme.typography.bodySmall)
+                    Text("Keep notes, remove category", style = MaterialTheme.typography.bodySmall)
                 }
                 if (categories.isNotEmpty()) {
                     Text("Move notes to:", style = MaterialTheme.typography.labelLarge)
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        categories.take(10).forEach { target ->
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.fillMaxWidth().clickable { onChooseMove(target.category.id) },
-                            ) {
-                                RadioButton(
-                                    selected = !deletion.uncategorize && deletion.targetCategoryId == target.category.id,
-                                    onClick = { onChooseMove(target.category.id) },
-                                )
-                                Text(target.category.name, style = MaterialTheme.typography.bodyMedium)
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    "${target.itemCount}",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
+                    categories.take(8).forEach { target ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth().clickable { onChooseMove(target.category.id) },
+                        ) {
+                            RadioButton(
+                                selected = !deletion.uncategorize && deletion.targetCategoryId == target.category.id,
+                                onClick = { onChooseMove(target.category.id) },
+                            )
+                            Text(target.category.name, style = MaterialTheme.typography.bodyMedium, maxLines = 1)
                         }
                     }
-                } else {
-                    Text(
-                        "This is the only category, so its notes will become uncategorized.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
                 }
             }
         },

@@ -10,6 +10,7 @@ import com.synfusion.snipnote.data.repository.TagRepository
 import com.synfusion.snipnote.data.security.CipherBox
 import com.synfusion.snipnote.data.security.KeystoreCipherBox
 import com.synfusion.snipnote.data.security.SafeSession
+import com.synfusion.snipnote.ui.actions.NoteActions
 import com.synfusion.snipnote.util.ClipboardService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -47,6 +48,9 @@ class AppContainer(context: Context) {
     }
 
     val clipboard: ClipboardService by lazy { ClipboardService(appContext) }
+
+    /** Shared contextual-action implementation used by Home, lists, search and Safe. */
+    val noteActions: NoteActions by lazy { NoteActions(noteRepository, clipboard) }
 
     /** Seeds the seven default categories on first launch. Idempotent. */
     fun seedDefaults() {

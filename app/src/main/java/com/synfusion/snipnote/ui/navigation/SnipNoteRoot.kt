@@ -10,19 +10,13 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.GridView
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
@@ -46,50 +40,58 @@ import com.synfusion.snipnote.ui.search.SearchScreen
 import com.synfusion.snipnote.ui.settings.SettingsScreen
 
 /**
- * Phone layout: glass bottom navigation. Tablet / landscape: navigation rail.
- * The breakpoint mirrors Material guidance (840dp expanded) with a 600dp rail tier.
+ * Root navigation.
+ *
+ * Phones get the floating glass pill (only on the four top-level destinations); wider layouts get
+ * the glass rail. The single central "+" opens the editor immediately – there is no type chooser,
+ * and the editor defaults to a private item while the Safe tab is active.
  */
 @Composable
 fun SnipNoteRoot(container: AppContainer) {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = backStackEntry?.destination
+    val currentRoute = currentDestination?.route
+    val showChrome = Destinations.isTopLevel(currentRoute)
+
+    fun openEditor(noteId: Long? = null, secure: Boolean = false) {
+        navController.navigate(Destinations.editor(noteId = noteId, secure = secure))
+    }
 
     AuroraBackground {
         BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-            val expanded = maxWidth >= 840.dp
+            // 600dp is the Material compact/medium breakpoint: below it the pill is used, above
+            // it the rail replaces the pill so the two never appear together.
             val medium = maxWidth >= 600.dp
+            val wide = maxWidth >= 840.dp
             Scaffold(
                 modifier = Modifier.fillMaxSize(),
                 containerColor = Color.Transparent,
-                // The root only reserves space for its own bars. Each screen applies the
-                // status-bar inset itself (TopAppBar or its own Scaffold), so consuming
-                // safeDrawing here as well would add a second status-bar gap.
                 contentWindowInsets = WindowInsets(0, 0, 0, 0),
                 bottomBar = {
-                    if (!expanded) {
-                        GlassNavigationBar(
-                            currentRoute = currentDestination?.route,
+                    if (!medium && showChrome) {
+                        FloatingNavPill(
+                            currentRoute = currentRoute,
                             onSelect = { route -> navController.navigateTopLevel(route) },
+                            onAdd = { openEditor(secure = currentRoute == Destinations.SAFE) },
                         )
                     }
                 },
             ) { innerPadding ->
                 Row(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
-                    if (expanded) {
+                    if (medium) {
                         GlassNavigationRail(
-                            currentRoute = currentDestination?.route,
+                            currentRoute = currentRoute,
                             onSelect = { route -> navController.navigateTopLevel(route) },
-                            wide = medium,
+                            onAdd = { openEditor(secure = currentRoute == Destinations.SAFE) },
+                            wide = wide,
                         )
                     }
-                    Box(modifier = Modifier.fillMaxSize()) {
-                        SnipNoteNavHost(
-                            navController = navController,
-                            container = container,
-                            useTwoPane = medium || expanded,
-                        )
-                    }
+                    NavHostContent(
+                        navController = navController,
+                        container = container,
+                        modifier = Modifier.weight(1f),
+                    )
                 }
             }
         }
@@ -105,14 +107,15 @@ private fun NavHostController.navigateTopLevel(route: String) {
 }
 
 @Composable
-private fun SnipNoteNavHost(
+private fun NavHostContent(
     navController: NavHostController,
     container: AppContainer,
-    useTwoPane: Boolean,
+    modifier: Modifier = Modifier,
 ) {
     NavHost(
         navController = navController,
         startDestination = Destinations.HOME,
+        modifier = modifier,
         enterTransition = { fadeIn() + slideInHorizontally(initialOffsetX = { it / 24 }) },
         exitTransition = { fadeOut() },
         popEnterTransition = { fadeIn() },
@@ -121,26 +124,21 @@ private fun SnipNoteNavHost(
         composable(Destinations.HOME) {
             HomeScreen(
                 container = container,
-                twoPane = useTwoPane,
                 onOpenNote = { id -> navController.navigate(Destinations.detail(id)) },
-                onCreateNote = { type -> navController.navigate(Destinations.editor(type = type)) },
                 onOpenSearch = { navController.navigate(Destinations.SEARCH) },
-                onOpenList = { preset, categoryId, type ->
-                    navController.navigate(Destinations.noteList(preset = preset, categoryId = categoryId, type = type))
-                },
-                onOpenCategories = { navController.navigateTopLevel(Destinations.CATEGORIES) },
-                onOpenSafe = { navController.navigateTopLevel(Destinations.SAFE) },
                 onOpenSettings = { navController.navigateTopLevel(Destinations.SETTINGS) },
+                onEditNote = { id -> navController.navigate(Destinations.editor(noteId = id)) },
             )
         }
 
         composable(Destinations.CATEGORIES) {
             CategoriesScreen(
                 container = container,
-                twoPane = useTwoPane,
                 onOpenCategory = { id -> navController.navigate(Destinations.noteList(categoryId = id)) },
                 onOpenTag = { id -> navController.navigate(Destinations.noteList(tagId = id)) },
                 onOpenAll = { navController.navigate(Destinations.noteList()) },
+                onOpenFavorites = { navController.navigate(Destinations.noteList(preset = "favorites")) },
+                onOpenPinned = { navController.navigate(Destinations.noteList(preset = "pinned")) },
             )
         }
 
@@ -148,7 +146,7 @@ private fun SnipNoteNavHost(
             SafeScreen(
                 container = container,
                 onOpenNote = { id -> navController.navigate(Destinations.detail(id, secure = true)) },
-                onCreateNote = { type -> navController.navigate(Destinations.editor(secure = true, type = type)) },
+                onEditNote = { id -> navController.navigate(Destinations.editor(noteId = id, secure = true)) },
             )
         }
 
@@ -161,6 +159,7 @@ private fun SnipNoteNavHost(
                 container = container,
                 onOpenNote = { id -> navController.navigate(Destinations.detail(id)) },
                 onBack = { navController.popBackStack() },
+                onEditNote = { id -> navController.navigate(Destinations.editor(noteId = id)) },
             )
         }
 
@@ -173,22 +172,17 @@ private fun SnipNoteNavHost(
                 navArgument(Destinations.ARG_TAG_ID) { type = NavType.LongType; defaultValue = -1L },
             ),
         ) { entry ->
-            val viewModel: NoteListViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
-                factory = SnipViewModelFactories.noteList(container),
-            )
-            val categoryId = entry.arguments?.getLong(Destinations.ARG_CATEGORY_ID)?.takeIf { it > 0 }
-            val tagId = entry.arguments?.getLong(Destinations.ARG_TAG_ID)?.takeIf { it > 0 }
-            val typeKey = entry.arguments?.getString(Destinations.ARG_TYPE).takeUnless { it == null || it == "-" }
+            val viewModel: NoteListViewModel = viewModel(factory = SnipViewModelFactories.noteList(container))
             NoteListScreen(
-                viewModel = viewModel,
                 container = container,
+                viewModel = viewModel,
                 preset = entry.arguments?.getString(Destinations.ARG_PRESET) ?: "all",
-                categoryId = categoryId,
-                tagId = tagId,
-                typeKey = typeKey,
+                categoryId = entry.arguments?.getLong(Destinations.ARG_CATEGORY_ID)?.takeIf { it > 0 },
+                tagId = entry.arguments?.getLong(Destinations.ARG_TAG_ID)?.takeIf { it > 0 },
+                typeKey = entry.arguments?.getString(Destinations.ARG_TYPE).takeUnless { it == null || it == "-" },
                 onBack = { navController.popBackStack() },
                 onOpenNote = { id -> navController.navigate(Destinations.detail(id)) },
-                onCreateNote = { navController.navigate(Destinations.editor()) },
+                onEditNote = { id -> navController.navigate(Destinations.editor(noteId = id)) },
             )
         }
 
@@ -200,12 +194,12 @@ private fun SnipNoteNavHost(
                 navArgument(Destinations.ARG_TYPE) { type = NavType.StringType; defaultValue = "-" },
             ),
         ) { entry ->
+            val editingId = entry.arguments?.getLong(Destinations.ARG_NOTE_ID)?.takeIf { it > 0 }
             EditorScreen(
                 container = container,
-                secure = entry.arguments?.getBoolean(Destinations.ARG_SECURE) ?: false,
                 onBack = { navController.popBackStack() },
                 onSaved = { id, isSecure ->
-                    if (entry.arguments?.getLong(Destinations.ARG_NOTE_ID)?.let { it > 0 } == true) {
+                    if (editingId != null) {
                         navController.popBackStack()
                     } else {
                         navController.navigate(Destinations.detail(id, isSecure)) {
@@ -235,16 +229,3 @@ private fun SnipNoteNavHost(
         }
     }
 }
-
-/** Navigation item model shared by the bottom bar and the rail. */
-data class NavItem(val route: String, val label: String, val selectedIcon: ImageVector, val icon: ImageVector)
-
-val navItems: List<NavItem> = listOf(
-    NavItem(Destinations.HOME, "Home", Icons.Filled.Home, Icons.Outlined.Home),
-    NavItem(Destinations.CATEGORIES, "Categories", Icons.Filled.GridView, Icons.Outlined.GridView),
-    NavItem(Destinations.SAFE, "Safe", Icons.Filled.Lock, Icons.Outlined.Lock),
-    NavItem(Destinations.SETTINGS, "Settings", Icons.Filled.Settings, Icons.Outlined.Settings),
-)
-
-fun androidx.navigation.NavDestination?.isSelected(route: String): Boolean =
-    this?.hierarchy?.any { it.route == route } == true
