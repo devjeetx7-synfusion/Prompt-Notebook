@@ -52,11 +52,11 @@ private val DarkScheme = darkColorScheme(
     onTertiary = Color(0xFF00382A),
     tertiaryContainer = Color(0xFF175A44),
     onTertiaryContainer = Color(0xFFC8F7E1),
-    background = AuroraDark.Background,
+    background = Color(0xFF0C0E1A),
     onBackground = AuroraDark.OnSurface,
-    surface = AuroraDark.Surface,
+    surface = Color(0xFF161A29),
     onSurface = AuroraDark.OnSurface,
-    surfaceVariant = AuroraDark.SurfaceVariant,
+    surfaceVariant = Color(0xFF242A3F),
     onSurfaceVariant = AuroraDark.SecondaryText,
     surfaceTint = AuroraDark.Primary,
     outline = AuroraDark.Outline,
@@ -78,6 +78,11 @@ data class AuroraExtras(
     val glassBorder: Color,
     val glassFillStrong: Color,
     val navFill: Color,
+    val navBorder: Color = glassBorder,
+    val shadow: Color = Color.Black.copy(alpha = 0.2f),
+    val chipFill: Color = glassFill,
+    val pink: Color = Color(0xFFF3A6D0),
+    val isDark: Boolean = false,
 )
 
 val LocalAuroraExtras = staticCompositionLocalOf {
@@ -98,10 +103,15 @@ private val LightExtras = AuroraExtras(
     favorite = AuroraLight.Favorite,
     pin = AuroraLight.Pin,
     danger = AuroraLight.Danger,
-    glassFill = Color.White.copy(alpha = 0.58f),
-    glassBorder = Color.White.copy(alpha = 0.70f),
-    glassFillStrong = Color.White.copy(alpha = 0.82f),
-    navFill = Color.White.copy(alpha = 0.78f),
+    glassFill = LightGlass.cardFill,
+    glassBorder = LightGlass.cardBorder,
+    glassFillStrong = LightGlass.cardFillStrong,
+    navFill = LightGlass.navFill,
+    navBorder = LightGlass.navBorder,
+    shadow = LightGlass.shadow,
+    chipFill = LightGlass.chipFill,
+    pink = AuroraLight.Pink,
+    isDark = false,
 )
 
 private val DarkExtras = AuroraExtras(
@@ -109,10 +119,15 @@ private val DarkExtras = AuroraExtras(
     favorite = AuroraDark.Favorite,
     pin = AuroraDark.Pin,
     danger = AuroraDark.Danger,
-    glassFill = Color(0xFF1D2030).copy(alpha = 0.62f),
-    glassBorder = Color.White.copy(alpha = 0.10f),
-    glassFillStrong = Color(0xFF232739).copy(alpha = 0.86f),
-    navFill = Color(0xFF181B28).copy(alpha = 0.86f),
+    glassFill = DarkGlass.cardFill,
+    glassBorder = DarkGlass.cardBorder,
+    glassFillStrong = DarkGlass.cardFillStrong,
+    navFill = DarkGlass.navFill,
+    navBorder = DarkGlass.navBorder,
+    shadow = DarkGlass.shadow,
+    chipFill = DarkGlass.chipFill,
+    pink = AuroraDark.Pink,
+    isDark = true,
 )
 
 @Composable
