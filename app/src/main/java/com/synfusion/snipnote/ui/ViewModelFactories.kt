@@ -1,7 +1,6 @@
 package com.synfusion.snipnote.ui
 
 import androidx.lifecycle.createSavedStateHandle
-import androidx.lifecycle.viewmodel.CreationExtras
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.synfusion.snipnote.AppContainer
@@ -58,8 +57,4 @@ object SnipViewModelFactories {
     fun settings(container: AppContainer): ViewModelProvider.Factory = viewModelFactory {
         initializer { SettingsViewModel(container.settingsRepository, container.backupRepository) }
     }
-
-    /** Exposed so tests can build a factory around an already constructed ViewModel. */
-    fun <T : androidx.lifecycle.ViewModel> of(factory: (CreationExtras) -> T): ViewModelProvider.Factory =
-        viewModelFactory { initializer { factory(this) } }
 }

@@ -1,5 +1,6 @@
 package com.synfusion.snipnote.data.backup
 
+import androidx.room.withTransaction
 import com.synfusion.snipnote.data.local.CategoryEntity
 import com.synfusion.snipnote.data.local.SnipNoteDatabase
 import com.synfusion.snipnote.data.local.TagEntity
