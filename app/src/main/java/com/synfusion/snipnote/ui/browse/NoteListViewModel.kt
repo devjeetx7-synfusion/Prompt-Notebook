@@ -8,9 +8,7 @@ import com.synfusion.snipnote.data.repository.NoteRepository
 import com.synfusion.snipnote.data.repository.SettingsRepository
 import com.synfusion.snipnote.domain.model.Category
 import com.synfusion.snipnote.domain.model.Note
-import com.synfusion.snipnote.domain.model.Category
 import com.synfusion.snipnote.domain.model.NoteFilter
-import com.synfusion.snipnote.domain.model.Category
 import com.synfusion.snipnote.domain.model.NoteType
 import com.synfusion.snipnote.domain.model.SortOrder
 import com.synfusion.snipnote.ui.actions.NoteActions

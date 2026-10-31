@@ -63,6 +63,7 @@ fun SnipNoteRoot(container: AppContainer) {
             // 600dp is the Material compact/medium breakpoint: below it the pill is used, above
             // it the rail replaces the pill so the two never appear together.
             val medium = maxWidth >= 600.dp
+            val wide = maxWidth >= 840.dp
             Scaffold(
                 modifier = Modifier.fillMaxSize(),
                 containerColor = Color.Transparent,
@@ -83,7 +84,7 @@ fun SnipNoteRoot(container: AppContainer) {
                             currentRoute = currentRoute,
                             onSelect = { route -> navController.navigateTopLevel(route) },
                             onAdd = { openEditor(secure = currentRoute == Destinations.SAFE) },
-                            wide = maxWidth >= 840.dp,
+                            wide = wide,
                         )
                     }
                     NavHostContent(
