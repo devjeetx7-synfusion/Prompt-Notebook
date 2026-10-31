@@ -187,6 +187,7 @@ jobs:
           files = sorted(glob.glob("app/build/test-results/testDebugUnitTest/*.xml"))
           if not files:
               print("No JUnit XML results found - the test task did not produce reports.")
+              print("::notice title=Unit tests::no JUnit XML reports were produced")
               raise SystemExit(0)
           tests = failures = errors = skipped = 0
           for path in files:
@@ -206,6 +207,9 @@ jobs:
           print(summary)
           with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as handle:
               handle.write(summary)
+          # Also emit the counts as a notice annotation: visible in the PR checks UI and
+          # readable programmatically via the check-runs API.
+          print(f"::notice title=Unit tests::{tests} tests, {failures} failures, {errors} errors, {skipped} skipped")
           PY
 
       - name: Upload unit test reports
