@@ -121,10 +121,11 @@ jobs:
           if [ "$status" -ne 0 ]; then
             echo "::error::Gradle build failed with exit code ${status}"
             {
-              grep -E '^(e: |error:|FAILURE:|\* What went wrong|Caused by:|> Task .* FAILED)' gradle-build.log || true
-              echo "--- tail of gradle-build.log ---"
-              tail -n 25 gradle-build.log
-            } | tr -d '\r' | sed 's/%/%25/g' | awk '!seen[$0]++' | tail -n 14 > /tmp/annotations.txt
+              # Cause lines first: Gradle's failure block and Kotlin/KSP compiler diagnostics.
+              grep -E '^(\* What went wrong:|\* Where:|\* Try:|Caused by:|e: |error:|> Task .* FAILED|FAILURE:)' gradle-build.log || true
+              # Then a short tail with JVM stack frames stripped out.
+              grep -v -E '^[[:space:]]+at |^[[:space:]]*$' gradle-build.log | tail -n 6
+            } | tr -d '\r' | sed 's/%/%25/g' | awk '!seen[$0]++' | head -n 10 > /tmp/annotations.txt
             while IFS= read -r line; do printf '::error::%s\n' "$line"; done < /tmp/annotations.txt
           fi
           exit "$status"
@@ -171,10 +172,9 @@ jobs:
           if [ "$status" -ne 0 ]; then
             echo "::error::Unit tests failed with exit code ${status}"
             {
-              grep -E '^(e: |error:|FAILURE:|.*tests? completed,.*failed|> Task .* FAILED|\* What went wrong|Caused by:)' gradle-test.log || true
-              echo "--- tail of gradle-test.log ---"
-              tail -n 25 gradle-test.log
-            } | tr -d '\r' | sed 's/%/%25/g' | awk '!seen[$0]++' | tail -n 14 > /tmp/annotations.txt
+              grep -E '^(\* What went wrong:|\* Where:|\* Try:|Caused by:|e: |error:|> Task .* FAILED|FAILURE:|.*tests? completed,.*failed)' gradle-test.log || true
+              grep -v -E '^[[:space:]]+at |^[[:space:]]*$' gradle-test.log | tail -n 6
+            } | tr -d '\r' | sed 's/%/%25/g' | awk '!seen[$0]++' | head -n 10 > /tmp/annotations.txt
             while IFS= read -r line; do printf '::error::%s\n' "$line"; done < /tmp/annotations.txt
           fi
           exit "$status"
