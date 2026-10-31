@@ -158,7 +158,7 @@ To build from the command line you need `local.properties` with `sdk.dir=/path/t
 # debug build
 ./gradlew :app:assembleDebug
 
-# JVM unit tests (detection, copy integrity, backup validation, crypto, text/time utils)
+# JVM unit tests (detection, copy integrity, backup validation, crypto, routes, text/time utils)
 ./gradlew :app:testDebugUnitTest
 
 # Instrumentation tests (Room CRUD, categories, search, Safe access control,
@@ -174,8 +174,8 @@ Instrumentation tests need a device or emulator and are **not** part of CI.
 > **Verification status.** The app was authored in a sandbox without a JDK, Android SDK or
 > access to Maven/Google repositories, so nothing could be built there. The GitHub Actions
 > pipeline is what actually exercises the project: `:app:assembleDebug` and
-> `:app:testDebugUnitTest` both pass — **44 unit tests, 0 failures, 0 errors, 0 skipped**
-> (run [41175256650](https://github.com/devjeetx7-synfusion/Prompt-Notebook/actions/runs/41175256650),
+> `:app:testDebugUnitTest` both pass — **48 unit tests, 0 failures, 0 errors, 0 skipped**
+> (run [41176450827](https://github.com/devjeetx7-synfusion/Prompt-Notebook/actions/runs/41176450827),
 > producing a 19,519,880-byte `app-debug.apk`). The instrumentation tests have **not** been
 > executed anywhere yet.
 
@@ -200,8 +200,8 @@ Instrumentation tests need a device or emulator and are **not** part of CI.
 
 The workflow fails if compilation, the APK check or the unit tests fail.
 
-**Last verified run:** [#41175256650](https://github.com/devjeetx7-synfusion/Prompt-Notebook/actions/runs/41175256650)
-— success, 4 m 45 s, 44 unit tests passed (0 failures, 0 errors, 0 skipped); artifacts
+**Last verified run:** [#41176450827](https://github.com/devjeetx7-synfusion/Prompt-Notebook/actions/runs/41176450827)
+— success, 3 m 13 s, 48 unit tests passed (0 failures, 0 errors, 0 skipped); artifacts
 `SnipNote-debug-apk` (19,519,880 bytes), `SnipNote-unit-test-reports`, `SnipNote-build-log`.
 The only CI noise is an informational "Gradle 8.11.1 is out of date" notice; the wrapper
 version is pinned deliberately to match AGP 8.7.3.
@@ -236,6 +236,7 @@ Artifacts expire after 14 days; re-run the workflow from **Run workflow** to reg
 | Persistence across a close/reopen cycle | `androidTest/.../PersistenceInstrumentedTest.kt` |
 | UI smoke flow | `androidTest/.../MainActivityUiTest.kt` |
 | Text/time/tag helpers | `test/.../TextUtilsTest.kt`, `TimeFormatTest.kt`, `TagTest.kt` |
+| Navigation route encoding / chrome visibility | `test/.../DestinationsTest.kt` |
 
 ---
 
