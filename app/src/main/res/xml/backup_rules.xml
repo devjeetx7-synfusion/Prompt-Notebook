@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The app opts out of Android Auto Backup (android:allowBackup="false") because the
+  encrypted Safe workspace keys live in the Android Keystore and are never exportable.
+  Restoring ciphertext without its key would produce permanently unreadable data, so we
+  ship an explicit JSON export/import flow instead (Settings > Backup & Restore).
+-->
+<full-backup-content>
+    <exclude domain="database" path="." />
+    <exclude domain="sharedpref" path="." />
+    <exclude domain="file" path="." />
+</full-backup-content>

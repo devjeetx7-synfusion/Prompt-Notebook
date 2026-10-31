@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Simplified "snip" mark: a rounded note card with a folded corner and a spark. -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.95"
+        android:pathData="M34,30h28l14,14v34a6,6 0 0 1 -6,6H34a6,6 0 0 1 -6,-6V36a6,6 0 0 1 6,-6z" />
+    <path
+        android:fillColor="#C9C2FF"
+        android:pathData="M62,30l14,14h-10a4,4 0 0 1 -4,-4z" />
+    <path
+        android:fillColor="#7567F8"
+        android:pathData="M38,54h30v4H38zM38,64h22v4H38zM38,74h16v4H38z" />
+</vector>
