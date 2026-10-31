@@ -43,12 +43,12 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
 
       - name: Set up JDK ${{ env.JAVA_VERSION }}
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: ${{ env.JAVA_DISTRIBUTION }}
           java-version: ${{ env.JAVA_VERSION }}
@@ -56,10 +56,10 @@ jobs:
       # Configures the Gradle user-home cache and job summaries. No gradle-version input on
       # purpose: the committed wrapper decides the Gradle version (and is checksum-validated).
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
 
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
         with:
           packages: >-
             platform-tools
@@ -85,7 +85,7 @@ jobs:
           grep -Eq 'include\(":app"\)' settings.gradle.kts || fail "settings.gradle.kts does not include :app"
           grep -Eq 'namespace = "com\.synfusion\.snipnote"' app/build.gradle.kts \
             || fail "unexpected Android namespace in app/build.gradle.kts"
-          grep -Eq 'testDebugUnitTest|testImplementation' app/build.gradle.kts \
+          grep -Eq 'testImplementation' app/build.gradle.kts \
             || fail "app module declares no unit-test dependencies"
 
           echo "Wrapper declares:"
@@ -109,8 +109,20 @@ jobs:
           done
           echo "Android SDK components OK"
 
+      # Build logs are teed to a file so that, on failure, the compiler diagnostics can be
+      # republished as check annotations (visible in the UI and via the API) and archived.
       - name: Build debug APK
-        run: ./gradlew ${{ env.APP_MODULE }}:assembleDebug --stacktrace
+        run: |
+          set -uo pipefail
+          ./gradlew ${{ env.APP_MODULE }}:assembleDebug --stacktrace --console=plain 2>&1 | tee gradle-build.log
+          status="${PIPESTATUS[0]}"
+          if [ "$status" -ne 0 ]; then
+            echo "::error::Gradle build failed with exit code ${status} - see annotations and the SnipNote-build-log artifact"
+            grep -m10 -E '^(e: |error:|FAILURE:|> Task .* FAILED|\* What went wrong|Caused by:)' gradle-build.log \
+              | tr -d '\r' | sed 's/%/%25/g' \
+              | while IFS= read -r line; do printf '::error::%s\n' "$line"; done
+          fi
+          exit "$status"
 
       - name: Verify the debug APK was produced
         run: |
@@ -136,7 +148,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload debug APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: SnipNote-debug-apk
           path: ${{ env.APK_PATH }}
@@ -145,7 +157,17 @@ jobs:
           compression-level: 0
 
       - name: Run unit tests
-        run: ./gradlew ${{ env.APP_MODULE }}:testDebugUnitTest --stacktrace
+        run: |
+          set -uo pipefail
+          ./gradlew ${{ env.APP_MODULE }}:testDebugUnitTest --stacktrace --console=plain 2>&1 | tee gradle-test.log
+          status="${PIPESTATUS[0]}"
+          if [ "$status" -ne 0 ]; then
+            echo "::error::Unit tests failed with exit code ${status}"
+            grep -m10 -E '^(e: |error:|FAILURE:|.* tests? completed, .* failed|> Task .* FAILED|\* What went wrong)' gradle-test.log \
+              | tr -d '\r' | sed 's/%/%25/g' \
+              | while IFS= read -r line; do printf '::error::%s\n' "$line"; done
+          fi
+          exit "$status"
 
       - name: Summarise unit test results
         if: always()
@@ -178,7 +200,7 @@ jobs:
 
       - name: Upload unit test reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: SnipNote-unit-test-reports
           path: |
@@ -186,3 +208,14 @@ jobs:
             app/build/test-results/testDebugUnitTest/
           if-no-files-found: warn
           retention-days: 14
+
+      - name: Upload Gradle logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: SnipNote-build-log
+          path: |
+            gradle-build.log
+            gradle-test.log
+          if-no-files-found: warn
+          retention-days: 7
