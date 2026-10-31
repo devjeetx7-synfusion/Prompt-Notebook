@@ -117,10 +117,13 @@ jobs:
           ./gradlew ${{ env.APP_MODULE }}:assembleDebug --stacktrace --console=plain 2>&1 | tee gradle-build.log
           status="${PIPESTATUS[0]}"
           if [ "$status" -ne 0 ]; then
-            echo "::error::Gradle build failed with exit code ${status} - see annotations and the SnipNote-build-log artifact"
-            grep -m10 -E '^(e: |error:|FAILURE:|> Task .* FAILED|\* What went wrong|Caused by:)' gradle-build.log \
-              | tr -d '\r' | sed 's/%/%25/g' \
-              | while IFS= read -r line; do printf '::error::%s\n' "$line"; done
+            echo "::error::Gradle build failed with exit code ${status}"
+            {
+              grep -E '^(e: |error:|FAILURE:|\* What went wrong|Caused by:|> Task .* FAILED)' gradle-build.log || true
+              echo "--- tail of gradle-build.log ---"
+              tail -n 25 gradle-build.log
+            } | tr -d '\r' | sed 's/%/%25/g' | awk '!seen[$0]++' | tail -n 14 > /tmp/annotations.txt
+            while IFS= read -r line; do printf '::error::%s\n' "$line"; done < /tmp/annotations.txt
           fi
           exit "$status"
 
@@ -163,9 +166,12 @@ jobs:
           status="${PIPESTATUS[0]}"
           if [ "$status" -ne 0 ]; then
             echo "::error::Unit tests failed with exit code ${status}"
-            grep -m10 -E '^(e: |error:|FAILURE:|.* tests? completed, .* failed|> Task .* FAILED|\* What went wrong)' gradle-test.log \
-              | tr -d '\r' | sed 's/%/%25/g' \
-              | while IFS= read -r line; do printf '::error::%s\n' "$line"; done
+            {
+              grep -E '^(e: |error:|FAILURE:|.*tests? completed,.*failed|> Task .* FAILED|\* What went wrong|Caused by:)' gradle-test.log || true
+              echo "--- tail of gradle-test.log ---"
+              tail -n 25 gradle-test.log
+            } | tr -d '\r' | sed 's/%/%25/g' | awk '!seen[$0]++' | tail -n 14 > /tmp/annotations.txt
+            while IFS= read -r line; do printf '::error::%s\n' "$line"; done < /tmp/annotations.txt
           fi
           exit "$status"
 
