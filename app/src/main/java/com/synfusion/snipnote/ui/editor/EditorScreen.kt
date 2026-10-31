@@ -325,19 +325,6 @@ fun EditorScreen(
                     )
                 }
 
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Button(
-                        onClick = viewModel::save,
-                        enabled = state.canSave && !state.saving,
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(16.dp),
-                        contentPadding = PaddingValues(vertical = 14.dp),
-                    ) { Text(if (state.saving) "Saving…" else "Save item") }
-                    TextButton(onClick = requestBack) { Text("Cancel") }
-                }
                 Spacer(modifier = Modifier.size(16.dp))
                 Spacer(modifier = Modifier.navigationBarsPadding().size(20.dp))
             }

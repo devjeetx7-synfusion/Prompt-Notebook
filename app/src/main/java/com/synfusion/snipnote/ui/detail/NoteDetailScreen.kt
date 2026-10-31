@@ -122,8 +122,6 @@ fun NoteDetailScreen(
                 menuOpen = menuOpen,
                 onDismissMenu = { menuOpen = false },
                 note = note,
-                onCopy = { menuOpen = false; copy() },
-                onEdit = { menuOpen = false; note?.let { onEdit(it.id, it.isSecure) } },
                 onTogglePinned = { menuOpen = false; viewModel.togglePinned() },
                 onMoveCategory = { menuOpen = false; note?.let(onMoveCategory) },
                 onTogglePrivate = { menuOpen = false; viewModel.togglePrivate() },
@@ -175,8 +173,6 @@ private fun DetailTopBar(
     menuOpen: Boolean,
     onDismissMenu: () -> Unit,
     note: Note?,
-    onCopy: () -> Unit,
-    onEdit: () -> Unit,
     onTogglePinned: () -> Unit,
     onMoveCategory: () -> Unit,
     onTogglePrivate: () -> Unit,
@@ -204,17 +200,6 @@ private fun DetailTopBar(
                     Icon(Icons.Filled.MoreVert, contentDescription = "More actions", modifier = Modifier.size(19.dp))
                 }
                 DropdownMenu(expanded = menuOpen, onDismissRequest = onDismissMenu) {
-                    DropdownMenuItem(
-                        text = { Text("Copy content") },
-                        leadingIcon = { Icon(Icons.Filled.ContentCopy, contentDescription = null) },
-                        onClick = onCopy,
-                        enabled = note?.isReadable == true,
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Edit") },
-                        leadingIcon = { Icon(Icons.Filled.Edit, contentDescription = null) },
-                        onClick = onEdit,
-                    )
                     DropdownMenuItem(
                         text = { Text(if (note?.isPinned == true) "Unpin" else "Pin to top") },
                         leadingIcon = { Icon(Icons.Filled.PushPin, contentDescription = null) },
