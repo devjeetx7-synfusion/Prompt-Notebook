@@ -114,8 +114,10 @@ jobs:
       - name: Build debug APK
         run: |
           set -uo pipefail
+          set +e   # GitHub runs `bash -e`; a failing build must not skip the diagnostics below
           ./gradlew ${{ env.APP_MODULE }}:assembleDebug --stacktrace --console=plain 2>&1 | tee gradle-build.log
           status="${PIPESTATUS[0]}"
+          set -e
           if [ "$status" -ne 0 ]; then
             echo "::error::Gradle build failed with exit code ${status}"
             {
@@ -162,8 +164,10 @@ jobs:
       - name: Run unit tests
         run: |
           set -uo pipefail
+          set +e   # as above: keep running so failures are reported as annotations
           ./gradlew ${{ env.APP_MODULE }}:testDebugUnitTest --stacktrace --console=plain 2>&1 | tee gradle-test.log
           status="${PIPESTATUS[0]}"
+          set -e
           if [ "$status" -ne 0 ]; then
             echo "::error::Unit tests failed with exit code ${status}"
             {
