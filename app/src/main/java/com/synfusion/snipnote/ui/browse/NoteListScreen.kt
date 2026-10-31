@@ -79,7 +79,6 @@ fun NoteListScreen(
     typeKey: String? = null,
     onBack: () -> Unit,
     onOpenNote: (Long) -> Unit,
-    onCreateNote: () -> Unit,
     onEditNote: (Long) -> Unit = {},
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -227,10 +226,8 @@ fun NoteListScreen(
                         message = if (state.filter.isActive) {
                             "Try clearing the filters or searching for something else."
                         } else {
-                            "Tap the + button in the navigation bar to add your first item."
+                            "Use the + button in the navigation bar to add your first item."
                         },
-                        actionLabel = if (state.filter.isActive) null else "Create an item",
-                        onAction = if (state.filter.isActive) null else onCreateNote,
                     )
                 }
             } else {

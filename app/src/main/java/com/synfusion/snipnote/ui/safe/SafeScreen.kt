@@ -75,7 +75,6 @@ fun SafeScreen(
     container: AppContainer,
     onOpenNote: (Long) -> Unit,
     onEditNote: (Long) -> Unit,
-    onOpenCreateHint: () -> Unit = {},
     viewModel: SafeViewModel = viewModel(factory = SnipViewModelFactories.safe(container)),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -186,12 +185,10 @@ fun SafeScreen(
                             icon = Icons.Outlined.Shield,
                             title = if (state.query.isBlank()) "Safe is empty" else "No matches in Safe",
                             message = if (state.query.isBlank()) {
-                                "Tap + while you are on this tab to add a private item. It is encrypted at rest and hidden everywhere else in the app."
+                                "Tap the + button while you are on this tab to add a private item. It is encrypted at rest and hidden everywhere else in the app."
                             } else {
                                 "Nothing in your Safe matches this search."
                             },
-                            actionLabel = if (state.query.isBlank()) "Create a private item" else null,
-                            onAction = if (state.query.isBlank()) onOpenCreateHint else null,
                         )
                     }
                 } else {

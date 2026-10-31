@@ -90,7 +90,6 @@ fun SnipNoteRoot(container: AppContainer) {
                     NavHostContent(
                         navController = navController,
                         container = container,
-                        useTwoPane = medium,
                         modifier = Modifier.weight(1f),
                     )
                 }
@@ -111,7 +110,6 @@ private fun NavHostController.navigateTopLevel(route: String) {
 private fun NavHostContent(
     navController: NavHostController,
     container: AppContainer,
-    useTwoPane: Boolean,
     modifier: Modifier = Modifier,
 ) {
     NavHost(
@@ -126,10 +124,8 @@ private fun NavHostContent(
         composable(Destinations.HOME) {
             HomeScreen(
                 container = container,
-                twoPane = useTwoPane,
                 onOpenNote = { id -> navController.navigate(Destinations.detail(id)) },
                 onOpenSearch = { navController.navigate(Destinations.SEARCH) },
-                onAdd = { navController.navigate(Destinations.editor()) },
                 onOpenSettings = { navController.navigateTopLevel(Destinations.SETTINGS) },
                 onEditNote = { id -> navController.navigate(Destinations.editor(noteId = id)) },
             )
@@ -138,13 +134,11 @@ private fun NavHostContent(
         composable(Destinations.CATEGORIES) {
             CategoriesScreen(
                 container = container,
-                twoPane = useTwoPane,
                 onOpenCategory = { id -> navController.navigate(Destinations.noteList(categoryId = id)) },
                 onOpenTag = { id -> navController.navigate(Destinations.noteList(tagId = id)) },
                 onOpenAll = { navController.navigate(Destinations.noteList()) },
                 onOpenFavorites = { navController.navigate(Destinations.noteList(preset = "favorites")) },
                 onOpenPinned = { navController.navigate(Destinations.noteList(preset = "pinned")) },
-                onAdd = { navController.navigate(Destinations.editor()) },
             )
         }
 
@@ -153,7 +147,6 @@ private fun NavHostContent(
                 container = container,
                 onOpenNote = { id -> navController.navigate(Destinations.detail(id, secure = true)) },
                 onEditNote = { id -> navController.navigate(Destinations.editor(noteId = id, secure = true)) },
-                onOpenCreateHint = { navController.navigate(Destinations.editor(secure = true)) },
             )
         }
 
@@ -189,7 +182,6 @@ private fun NavHostContent(
                 typeKey = entry.arguments?.getString(Destinations.ARG_TYPE).takeUnless { it == null || it == "-" },
                 onBack = { navController.popBackStack() },
                 onOpenNote = { id -> navController.navigate(Destinations.detail(id)) },
-                onCreateNote = { navController.navigate(Destinations.editor()) },
                 onEditNote = { id -> navController.navigate(Destinations.editor(noteId = id)) },
             )
         }

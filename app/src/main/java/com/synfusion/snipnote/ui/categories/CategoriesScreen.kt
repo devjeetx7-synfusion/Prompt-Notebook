@@ -78,13 +78,11 @@ import com.synfusion.snipnote.ui.theme.LocalAuroraExtras
 @Composable
 fun CategoriesScreen(
     container: AppContainer,
-    twoPane: Boolean,
     onOpenCategory: (Long) -> Unit,
     onOpenTag: (Long) -> Unit,
     onOpenAll: () -> Unit,
     onOpenFavorites: () -> Unit,
     onOpenPinned: () -> Unit,
-    onAdd: () -> Unit,
     viewModel: CategoriesViewModel = viewModel(factory = SnipViewModelFactories.categories(container)),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()

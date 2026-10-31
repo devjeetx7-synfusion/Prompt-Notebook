@@ -73,10 +73,8 @@ import com.synfusion.snipnote.ui.theme.LocalAuroraExtras
 @Composable
 fun HomeScreen(
     container: AppContainer,
-    twoPane: Boolean,
     onOpenNote: (Long) -> Unit,
     onOpenSearch: () -> Unit,
-    onAdd: () -> Unit,
     onOpenSettings: () -> Unit,
     onEditNote: (Long) -> Unit,
     viewModel: HomeViewModel = viewModel(factory = SnipViewModelFactories.home(container)),
@@ -151,12 +149,10 @@ fun HomeScreen(
                         icon = Icons.Outlined.Notes,
                         title = if (state.filterType == null) "Nothing captured yet" else "Nothing here yet",
                         message = if (state.filterType == null) {
-                            "Tap the + button to save a prompt, a note, code or a link. Everything stays on this device."
+                            "Use the + button below to save a prompt, a note, code or a link. Everything stays on this device."
                         } else {
-                            "You have no ${state.filterType?.label?.lowercase()} saved yet."
+                            "You have no ${state.filterType?.label?.lowercase()} saved yet. Add one with the + button below."
                         },
-                        actionLabel = "Create your first item",
-                        onAction = onAdd,
                     )
                 }
             } else {
