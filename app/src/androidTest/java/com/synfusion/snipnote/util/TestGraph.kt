@@ -51,13 +51,22 @@ class TestCipherBox(
 }
 
 class TestGraph(context: Context, private val fileName: String? = null) {
+    // Explicit executors keep behaviour deterministic under runTest and make the
+    // persistence test's close/reopen cycle unambiguous.
+    private val queryExecutor = java.util.concurrent.Executors.newSingleThreadExecutor()
+    private val transactionExecutor = java.util.concurrent.Executors.newSingleThreadExecutor()
+
     val database: SnipNoteDatabase = if (fileName == null) {
         Room.inMemoryDatabaseBuilder(context, SnipNoteDatabase::class.java)
             .allowMainThreadQueries()
+            .setQueryExecutor(queryExecutor)
+            .setTransactionExecutor(transactionExecutor)
             .build()
     } else {
         Room.databaseBuilder(context, SnipNoteDatabase::class.java, fileName)
             .allowMainThreadQueries()
+            .setQueryExecutor(queryExecutor)
+            .setTransactionExecutor(transactionExecutor)
             .build()
     }
 
@@ -66,7 +75,11 @@ class TestGraph(context: Context, private val fileName: String? = null) {
     val notes = RoomNoteRepository(database, cipher, session, clock = { FIXED_NOW })
     val categories = CategoryRepository(database, clock = { FIXED_NOW })
 
-    fun close() = database.close()
+    fun close() {
+        database.close()
+        queryExecutor.shutdown()
+        transactionExecutor.shutdown()
+    }
 
     companion object {
         var FIXED_NOW: Long = 1_760_000_000_000

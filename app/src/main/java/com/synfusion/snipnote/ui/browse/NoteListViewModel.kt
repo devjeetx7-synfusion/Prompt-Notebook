@@ -4,6 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.synfusion.snipnote.data.repository.NoteRepository
+import com.synfusion.snipnote.data.repository.SettingsRepository
 import com.synfusion.snipnote.domain.model.Note
 import com.synfusion.snipnote.domain.model.NoteFilter
 import com.synfusion.snipnote.domain.model.NoteType
@@ -13,6 +14,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
@@ -42,6 +44,7 @@ object NoteListPreset {
 class NoteListViewModel(
     private val repository: NoteRepository,
     savedStateHandle: SavedStateHandle,
+    settings: SettingsRepository? = null,
 ) : ViewModel() {
 
     private val preset: String = savedStateHandle.get<String>("preset") ?: NoteListPreset.ALL
@@ -60,6 +63,18 @@ class NoteListViewModel(
     private val transient = MutableStateFlow(Transient())
 
     private data class Transient(val message: String? = null, val error: String? = null)
+
+    /** True once the user picks a sort explicitly; the stored default must not override that. */
+    private var sortChosenByUser = false
+
+    init {
+        if (settings != null) {
+            viewModelScope.launch {
+                val stored = settings.settings.first().defaultSort
+                filter.update { current -> if (sortChosenByUser) current else current.copy(sort = stored) }
+            }
+        }
+    }
 
     private val notesFlow = filter.flatMapLatest { current ->
         repository.observeNotes(current).catch { throwable ->
@@ -88,7 +103,10 @@ class NoteListViewModel(
 
     fun setType(type: NoteType?) = filter.update { it.copy(type = type) }
 
-    fun setSort(sort: SortOrder) = filter.update { it.copy(sort = sort) }
+    fun setSort(sort: SortOrder) {
+        sortChosenByUser = true
+        filter.update { it.copy(sort = sort) }
+    }
 
     fun setCategoryFilter(categoryId: Long?) = filter.update { it.copy(categoryId = categoryId) }
 

@@ -15,7 +15,6 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -117,9 +116,4 @@ class SafeViewModel(
     }
 
     fun clearMessage() = transient.update { Transient() }
-
-    /** Only ever exposes a count, never titles or content, while locked. */
-    fun observeSafeCount(): StateFlow<Int> = repository.observeSecureCount()
-        .map { it }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 }

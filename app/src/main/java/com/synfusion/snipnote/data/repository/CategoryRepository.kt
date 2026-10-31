@@ -41,7 +41,7 @@ class CategoryRepository(
 
     fun observeCategories(): Flow<List<Category>> =
         categoryDao.observeAll()
-            .map { rows -> rows.map(CategoryEntity::toDomain) }
+            .map { rows -> rows.map { entity -> entity.toDomain() } }
             .flowOn(ioDispatcher)
 
     fun observeCategoriesWithCounts(): Flow<List<CategoryWithCount>> =

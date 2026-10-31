@@ -55,22 +55,22 @@ class RoomNoteRepository(
             favoritesOnly = if (filter.favoritesOnly) 1 else 0,
             pinnedOnly = if (filter.pinnedOnly) 1 else 0,
         )
-            .map { rows -> rows.map(::toDomain).sortedWith(sortComparator(filter.sort)) }
+            .map { rows -> rows.map { row -> toDomain(row) }.sortedWith(sortComparator(filter.sort)) }
             .flowOn(ioDispatcher)
     }
 
     override fun observeRecent(limit: Int): Flow<List<Note>> =
         noteDao.observeRecent(limit)
-            .map { rows -> rows.map(::toDomain) }
+            .map { rows -> rows.map { row -> toDomain(row) } }
             .flowOn(ioDispatcher)
 
     override fun observeNote(id: Long): Flow<Note?> =
         noteDao.observeVisibleById(id)
-            .map { row -> row?.let(::toDomain) }
+            .map { row -> row?.let { toDomain(it) } }
             .flowOn(ioDispatcher)
 
     override suspend fun getNote(id: Long): Note? = withContext(ioDispatcher) {
-        noteDao.findVisibleById(id)?.let(::toDomain)
+        noteDao.findVisibleById(id)?.let { toDomain(it) }
     }
 
     override fun observeVisibleCount(): Flow<Int> = noteDao.observeVisibleCount()
@@ -191,7 +191,7 @@ class RoomNoteRepository(
     fun observeSecureNotes(): Flow<List<Note>> {
         requireUnlocked()
         return noteDao.observeSecureNotes()
-            .map { rows -> rows.map(::toDomain).sortedWith(sortComparator(SortOrder.UPDATED_DESC)) }
+            .map { rows -> rows.map { row -> toDomain(row) }.sortedWith(sortComparator(SortOrder.UPDATED_DESC)) }
             .flowOn(ioDispatcher)
     }
 
@@ -212,13 +212,13 @@ class RoomNoteRepository(
     fun observeSecureNote(id: Long): Flow<Note?> {
         requireUnlocked()
         return noteDao.observeSecureById(id)
-            .map { row -> row?.let(::toDomain) }
+            .map { row -> row?.let { toDomain(it) } }
             .flowOn(ioDispatcher)
     }
 
     suspend fun getSecureNote(id: Long): Note? = withContext(ioDispatcher) {
         requireUnlocked()
-        noteDao.findSecureById(id)?.let(::toDomain)
+        noteDao.findSecureById(id)?.let { toDomain(it) }
     }
 
     fun observeSecureCount(): Flow<Int> = noteDao.observeSecureCount()

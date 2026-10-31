@@ -26,7 +26,9 @@ object SnipViewModelFactories {
     }
 
     fun noteList(container: AppContainer): ViewModelProvider.Factory = viewModelFactory {
-        initializer { NoteListViewModel(container.noteRepository, createSavedStateHandle()) }
+        initializer {
+            NoteListViewModel(container.noteRepository, createSavedStateHandle(), container.settingsRepository)
+        }
     }
 
     fun search(container: AppContainer): ViewModelProvider.Factory = viewModelFactory {

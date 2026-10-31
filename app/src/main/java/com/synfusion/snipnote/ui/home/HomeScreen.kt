@@ -32,8 +32,7 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.PushPin
-import androidx.compose.material.icons.outlined.EditNote
-import androidx.compose.material.icons.outlined.Notes
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -86,7 +85,6 @@ fun HomeScreen(
     twoPane: Boolean,
     onOpenNote: (Long) -> Unit,
     onCreateNote: (NoteType?) -> Unit,
-    onQuickCapture: (NoteType?) -> Unit,
     onOpenSearch: () -> Unit,
     onOpenList: (String, Long?, NoteType?) -> Unit,
     onOpenCategories: () -> Unit,
