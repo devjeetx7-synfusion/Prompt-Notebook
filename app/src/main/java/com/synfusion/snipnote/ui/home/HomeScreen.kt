@@ -124,7 +124,12 @@ fun HomeScreen(
             item { HomeHeader(state.greeting, onOpenSearch, onOpenSafe, onOpenSettings) }
             item { SearchLauncher(onOpenSearch) }
             item { QuickActions(onCreateNote = onCreateNote) }
-            item { StatsRow(state.counts) }
+            item {
+                StatsRow(
+                    counts = state.counts,
+                    onOpenList = { preset -> onOpenList(preset, null, null) },
+                )
+            }
             item {
                 SectionHeader(
                     title = "Categories",
@@ -333,22 +338,35 @@ private fun QuickAction(
 }
 
 @Composable
-private fun StatsRow(counts: Counts) {
+private fun StatsRow(counts: Counts, onOpenList: (String) -> Unit) {
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-        StatCard("All", counts.total.toString(), Icons.Outlined.Notes, Modifier.weight(1f))
-        StatCard("Favorites", counts.favorites.toString(), Icons.Filled.Star, Modifier.weight(1f))
-        StatCard("Pinned", counts.pinned.toString(), Icons.Filled.PushPin, Modifier.weight(1f))
+        StatCard("All", counts.total.toString(), Icons.Outlined.Notes, Modifier.weight(1f)) {
+            onOpenList(NoteListPreset.ALL)
+        }
+        StatCard("Favorites", counts.favorites.toString(), Icons.Filled.Star, Modifier.weight(1f)) {
+            onOpenList(NoteListPreset.FAVORITES)
+        }
+        StatCard("Pinned", counts.pinned.toString(), Icons.Filled.PushPin, Modifier.weight(1f)) {
+            onOpenList(NoteListPreset.PINNED)
+        }
     }
 }
 
 @Composable
-private fun StatCard(label: String, value: String, icon: ImageVector, modifier: Modifier = Modifier) {
+private fun StatCard(
+    label: String,
+    value: String,
+    icon: ImageVector,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
     val extras = LocalAuroraExtras.current
     val shape = RoundedCornerShape(18.dp)
     Column(
         modifier = modifier
             .clip(shape)
             .background(extras.glassFill, shape)
+            .clickable(role = Role.Button, onClick = onClick)
             .padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {

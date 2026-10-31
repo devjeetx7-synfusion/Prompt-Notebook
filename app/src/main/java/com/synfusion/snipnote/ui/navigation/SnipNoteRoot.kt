@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Home
@@ -63,7 +62,10 @@ fun SnipNoteRoot(container: AppContainer) {
             Scaffold(
                 modifier = Modifier.fillMaxSize(),
                 containerColor = Color.Transparent,
-                contentWindowInsets = WindowInsets.safeDrawing,
+                // The root only reserves space for its own bars. Each screen applies the
+                // status-bar inset itself (TopAppBar or its own Scaffold), so consuming
+                // safeDrawing here as well would add a second status-bar gap.
+                contentWindowInsets = WindowInsets(0, 0, 0, 0),
                 bottomBar = {
                     if (!expanded) {
                         GlassNavigationBar(

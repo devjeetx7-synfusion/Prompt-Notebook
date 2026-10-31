@@ -110,6 +110,7 @@ interface NoteDao {
     @Query("SELECT COUNT(*) FROM notes WHERE isSecure = 0 AND isPinned = 1")
     fun observePinnedCount(): Flow<Int>
 
+    @Transaction
     @Query("SELECT * FROM notes WHERE isSecure = 0 ORDER BY updatedAt DESC LIMIT :limit")
     fun observeRecent(limit: Int): Flow<List<NoteWithTags>>
 
