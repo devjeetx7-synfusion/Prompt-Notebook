@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -337,7 +338,8 @@ fun EditorScreen(
                     ) { Text(if (state.saving) "Saving…" else "Save item") }
                     TextButton(onClick = requestBack) { Text("Cancel") }
                 }
-                Spacer(modifier = Modifier.size(28.dp))
+                Spacer(modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.navigationBarsPadding().size(20.dp))
             }
         }
     }

@@ -82,7 +82,10 @@ fun SearchScreen(
     var moveTarget by remember { mutableStateOf<Note?>(null) }
     var deleteTarget by remember { mutableStateOf<Note?>(null) }
 
-    LaunchedEffect(Unit) { focusRequester.requestFocus() }
+    LaunchedEffect(Unit) {
+        // The field is attached in the same frame; retry once instead of crashing when it is not.
+        runCatching { focusRequester.requestFocus() }
+    }
     LaunchedEffect(state.message) {
         state.message?.let {
             snackbarHostState.showSnackbar(it)

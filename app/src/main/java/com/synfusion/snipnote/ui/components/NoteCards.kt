@@ -72,7 +72,13 @@ fun NoteRow(
             .clip(shape)
             .background(extras.glassFill, shape)
             .border(BorderStroke(1.dp, extras.glassBorder), shape)
-            .combinedClickable(role = Role.Button, onClick = onClick, onLongClick = onLongClick)
+            .combinedClickable(
+                role = Role.Button,
+                onClickLabel = "Open ${note.type.label}",
+                onLongClickLabel = "Show actions",
+                onClick = onClick,
+                onLongClick = onLongClick,
+            )
             .padding(start = 12.dp, end = 4.dp, top = 12.dp, bottom = 12.dp)
             .semantics { contentDescription = "${note.type.label}: ${note.displayTitle}" },
         verticalAlignment = Alignment.Top,
